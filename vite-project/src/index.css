@@ -1,64 +1,204 @@
 @import "tailwindcss";
 
 @layer base {
-  html {
-    scroll-behavior: smooth;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  :root {
+    --canvas: #F4F4F0;
+    --surface: #FFFFFF;
+    --surface-muted: #EBEBE6;
+    --surface-dark: #0F172A;
+    --accent-yellow: #FFE600;
+    --accent-lime: #00E599;
+    --accent-cyan: #00F0FF;
+    --accent-pink: #FF5376;
+    --accent-orange: #FF7A00;
+    --line: #000000;
+    --ink: #0F172A;
+    --ink-muted: #475569;
+  }
+
+  body {
+    background-color: var(--canvas);
+    color: var(--ink);
+    font-family: 'Outfit', 'Plus Jakarta Sans', sans-serif;
+  }
+
+  h1, h2, h3, .font-heading {
+    font-family: 'Space Grotesk', 'Outfit', sans-serif;
+    letter-spacing: -0.02em;
   }
 }
 
-/* Custom smooth auto-scroll for carousel */
-@keyframes infinite-scroll {
+/* Custom Neo-Brutalist Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #F4F4F0;
+  border-left: 3px solid #000000;
+}
+::-webkit-scrollbar-thumb {
+  background: #FFE600;
+  border: 3px solid #000000;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #000000;
+}
+
+/* Neo-Brutalism Utility Classes */
+.brutal-card {
+  background-color: #FFFFFF;
+  border: 3px solid #000000;
+  border-radius: 16px;
+  box-shadow: 4px 4px 0px #000000;
+  transition: all 0.15s cubic-bezier(0.2, 0, 0, 1);
+}
+
+.brutal-card:hover {
+  box-shadow: 6px 6px 0px #000000;
+  transform: translateY(-2px);
+}
+
+.brutal-card-yellow {
+  background-color: #FFE600;
+  color: #000000;
+  border: 3px solid #000000;
+  border-radius: 16px;
+  box-shadow: 4px 4px 0px #000000;
+}
+
+.brutal-card-dark {
+  background-color: #0F172A;
+  color: #FFFFFF;
+  border: 3px solid #000000;
+  border-radius: 16px;
+  box-shadow: 4px 4px 0px #000000;
+}
+
+.brutal-btn {
+  background-color: #FFFFFF;
+  color: #0F172A;
+  border: 3px solid #000000;
+  border-radius: 14px;
+  box-shadow: 4px 4px 0px #000000;
+  font-weight: 800;
+  transition: all 0.1s ease;
+  cursor: pointer;
+}
+
+.brutal-btn:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0px #000000;
+  background-color: #FAFAFA;
+}
+
+.brutal-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1.5px 1.5px 0px #000000;
+}
+
+.brutal-btn-yellow {
+  background-color: #FFE600;
+  color: #000000;
+  border: 3px solid #000000;
+  border-radius: 14px;
+  box-shadow: 4px 4px 0px #000000;
+  font-weight: 800;
+  transition: all 0.1s ease;
+  cursor: pointer;
+}
+
+.brutal-btn-yellow:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0px #000000;
+  background-color: #FFF066;
+}
+
+.brutal-btn-yellow:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1.5px 1.5px 0px #000000;
+}
+
+.brutal-btn-dark {
+  background-color: #0F172A;
+  color: #FFFFFF;
+  border: 3px solid #000000;
+  border-radius: 14px;
+  box-shadow: 4px 4px 0px #000000;
+  font-weight: 800;
+  transition: all 0.1s ease;
+  cursor: pointer;
+}
+
+.brutal-btn-dark:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0px #000000;
+  background-color: #1E293B;
+}
+
+.brutal-btn-dark:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1.5px 1.5px 0px #000000;
+}
+
+.brutal-input {
+  background-color: #FFFFFF;
+  border: 3px solid #000000;
+  border-radius: 16px;
+  box-shadow: 3px 3px 0px #000000;
+  color: #0F172A;
+  transition: all 0.15s ease;
+}
+
+.brutal-input:focus {
+  outline: none;
+  box-shadow: 5px 5px 0px #000000;
+  border-color: #000000;
+}
+
+.brutal-badge {
+  border: 2px solid #000000;
+  border-radius: 8px;
+  box-shadow: 2px 2px 0px #000000;
+  font-weight: 800;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+}
+
+/* Grid & Dots background pattern */
+.brutal-grid {
+  background-image: linear-gradient(#D4D4CE 1px, transparent 1px), linear-gradient(to right, #D4D4CE 1px, #F4F4F0 1px);
+  background-size: 24px 24px;
+}
+
+@keyframes stream-in {
   from {
-    transform: translateX(0);
+    opacity: 0;
+    transform: translateY(6px);
   }
   to {
-    transform: translateX(-50%);
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
-.animate-infinite-scroll {
-  display: flex;
-  width: max-content;
-  animation: infinite-scroll 40s linear infinite;
-}
-
-.animate-infinite-scroll:hover {
-  animation-play-state: paused;
-}
-
-/* Float animation for badges */
-@keyframes float-slow {
-  0%, 100% {
-    transform: translateY(0px);
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(6px);
   }
-  50% {
-    transform: translateY(-8px);
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
   }
 }
 
-@keyframes float-delayed {
-  0%, 100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(8px);
-  }
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-.animate-float {
-  animation: float-slow 4s ease-in-out infinite;
-}
 
-.animate-float-delayed {
-  animation: float-delayed 5s ease-in-out infinite;
-}
-
-/* Hide scrollbar for clean UI */
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
