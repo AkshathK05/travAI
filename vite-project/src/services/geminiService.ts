@@ -47,30 +47,48 @@ export interface StreamResponseResult {
 }
 
 /**
- * Candidate models to try in order if one returns 404 model not found.
+ * Dynamically queries Google's ListModels API for the key to discover valid models.
  */
-const GET_CANDIDATE_MODELS = (modelName: string): string[] => {
-  const lower = modelName.toLowerCase();
-  
-  if (lower.includes('pro')) {
-    return ['gemini-1.5-pro-latest', 'gemini-1.5-pro', 'gemini-2.0-flash-exp', 'gemini-1.5-flash-latest'];
+async function discoverValidModelNames(apiKey: string): Promise<string[]> {
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+    if (response.ok) {
+      const data = await response.json();
+      if (Array.isArray(data.models)) {
+        const available = data.models
+          .filter((m: any) => 
+            Array.isArray(m.supportedGenerationMethods) && 
+            m.supportedGenerationMethods.includes('generateContent')
+          )
+          .map((m: any) => m.name.replace(/^models\//, ''));
+
+        if (available.length > 0) {
+          console.log('Discovered supported Gemini models for key:', available);
+          return available;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Could not auto-discover Gemini models via REST API:', err);
   }
-  if (lower.includes('2.0')) {
-    return ['gemini-2.0-flash', 'gemini-2.0-flash-exp', 'gemini-1.5-flash-latest', 'gemini-1.5-flash'];
-  }
-  // Default flash fallback chain
+
+  // Universal hardcoded fallback model names
   return [
     'gemini-1.5-flash-latest',
-    'gemini-2.0-flash',
+    'gemini-1.5-flash-8b',
+    'gemini-2.0-flash-exp',
     'gemini-1.5-flash',
-    'gemini-2.5-flash',
-    'gemini-1.5-pro-latest'
+    'gemini-pro',
+    'gemini-1.5-pro-latest',
+    'gemini-1.5-pro',
+    'gemini-1.5-flash-001',
+    'gemini-1.5-flash-002'
   ];
-};
+}
 
 /**
  * Sends a query to the Gemini model and yields chunks as they stream.
- * Automatically tries fallback model names if 404 is encountered.
+ * Dynamically discovers models enabled for the user's API key.
  */
 export async function streamGeminiQuery(
   userQuery: string,
@@ -86,7 +104,9 @@ export async function streamGeminiQuery(
   }
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  const candidates = GET_CANDIDATE_MODELS(modelName);
+
+  // Discover valid model names for this specific API key
+  const validModels = await discoverValidModelNames(apiKey);
 
   // Prepare message history for Gemini chat format
   const formattedHistory = chatHistory
@@ -109,8 +129,8 @@ export async function streamGeminiQuery(
 
   let lastError: any = null;
 
-  // Try candidate models in order until one succeeds
-  for (const candidateModel of candidates) {
+  // Try discovered models in order until one succeeds
+  for (const candidateModel of validModels) {
     try {
       const model = genAI.getGenerativeModel({
         model: candidateModel,
@@ -142,7 +162,7 @@ export async function streamGeminiQuery(
         },
       };
     } catch (error: any) {
-      console.warn(`Model candidate ${candidateModel} failed:`, error?.message || error);
+      console.warn(`Attempt with candidate model ${candidateModel} failed:`, error?.message || error);
       lastError = error;
 
       // If it's an API Key invalid error, stop fallback immediately
@@ -155,18 +175,22 @@ export async function streamGeminiQuery(
         throw new Error('INVALID_API_KEY');
       }
 
-      // If it's a 404 model not found, continue to next candidate
-      if (error?.message?.includes('404') || error?.status === 404 || error?.message?.includes('not found')) {
+      // If 404 or unsupported method, continue to next candidate
+      if (
+        error?.message?.includes('404') ||
+        error?.status === 404 ||
+        error?.message?.includes('not found') ||
+        error?.message?.includes('not supported')
+      ) {
         continue;
       }
 
-      // For other errors, throw immediately
       throw error;
     }
   }
 
   // If all candidates failed
-  if (lastError?.message?.includes('404')) {
+  if (lastError?.message?.includes('404') || lastError?.message?.includes('not found')) {
     throw new Error('MODEL_NOT_FOUND');
   }
   throw lastError;
