@@ -5,22 +5,18 @@ const API_KEY_STORAGE_KEY = 'travai_gemini_api_key';
 
 // Rate limiting configuration
 const MAX_REQUESTS_PER_MINUTE = 10;
-const MIN_COOLDOWN_MS = 2000; // 2 seconds between consecutive requests
+const MIN_COOLDOWN_MS = 2000;
 const requestTimestamps: number[] = [];
 
 /**
  * Checks client-side rate limit rules before dispatching an API call.
- * Returns { allowed: true } or { allowed: false, remainingSeconds, reason }.
  */
 export function checkRateLimit(): { allowed: boolean; remainingSeconds?: number; reason?: string } {
   const now = Date.now();
-
-  // Remove timestamps older than 60 seconds (1 minute window)
   while (requestTimestamps.length > 0 && requestTimestamps[0] <= now - 60000) {
     requestTimestamps.shift();
   }
 
-  // Check 1: Minimum cooldown between requests
   if (requestTimestamps.length > 0) {
     const lastRequest = requestTimestamps[requestTimestamps.length - 1];
     const timeSinceLast = now - lastRequest;
@@ -34,7 +30,6 @@ export function checkRateLimit(): { allowed: boolean; remainingSeconds?: number;
     }
   }
 
-  // Check 2: Maximum requests per minute
   if (requestTimestamps.length >= MAX_REQUESTS_PER_MINUTE) {
     const oldestInWindow = requestTimestamps[0];
     const resetTimeMs = oldestInWindow + 60000 - now;
@@ -49,16 +44,10 @@ export function checkRateLimit(): { allowed: boolean; remainingSeconds?: number;
   return { allowed: true };
 }
 
-/**
- * Records a successful request timestamp for rate limit tracking.
- */
 function recordRequestTimestamp(): void {
   requestTimestamps.push(Date.now());
 }
 
-/**
- * Retrieves the stored Gemini API key from localStorage or Vite environment variables.
- */
 export function getStoredApiKey(): string {
   return (
     localStorage.getItem(API_KEY_STORAGE_KEY) ||
@@ -67,23 +56,14 @@ export function getStoredApiKey(): string {
   );
 }
 
-/**
- * Saves a user-provided Gemini API key to localStorage.
- */
 export function saveApiKey(key: string): void {
   localStorage.setItem(API_KEY_STORAGE_KEY, key.trim());
 }
 
-/**
- * Removes the stored Gemini API key.
- */
 export function removeApiKey(): void {
   localStorage.removeItem(API_KEY_STORAGE_KEY);
 }
 
-/**
- * System instruction tailored for travel concierge assistant.
- */
 const SYSTEM_INSTRUCTION = `You are TravAI, a world-class autonomous AI Travel Concierge and Trip Planner powered by Google Gemini.
 
 Your mission:
@@ -125,23 +105,18 @@ async function discoverValidModelNames(apiKey: string): Promise<string[]> {
     console.warn('Could not auto-discover Gemini models via REST API:', err);
   }
 
-  // Universal hardcoded fallback model names
   return [
+    'gemini-1.5-flash',
     'gemini-1.5-flash-latest',
     'gemini-1.5-flash-8b',
     'gemini-2.0-flash-exp',
-    'gemini-1.5-flash',
     'gemini-pro',
-    'gemini-1.5-pro-latest',
-    'gemini-1.5-pro',
-    'gemini-1.5-flash-001',
-    'gemini-1.5-flash-002'
+    'gemini-1.5-pro'
   ];
 }
 
 /**
  * Sends a query to the Gemini model and yields chunks as they stream.
- * Includes rate limit checks and API 429 error handling.
  */
 export async function streamGeminiQuery(
   userQuery: string,
@@ -150,7 +125,6 @@ export async function streamGeminiQuery(
   modelName: string = 'Gemini 2.5 Flash',
   overrideApiKey?: string
 ): Promise<StreamResponseResult> {
-  // Check client-side rate limit first
   const rateLimitStatus = checkRateLimit();
   if (!rateLimitStatus.allowed) {
     throw new Error(`RATE_LIMIT_EXCEEDED: ${rateLimitStatus.reason}`);
@@ -163,8 +137,6 @@ export async function streamGeminiQuery(
   }
 
   const genAI = new GoogleGenerativeAI(apiKey);
-
-  // Discover valid model names for this specific API key
   const validModels = await discoverValidModelNames(apiKey);
 
   // Prepare message history for Gemini chat format
@@ -175,7 +147,6 @@ export async function streamGeminiQuery(
       parts: [{ text: msg.content }],
     }));
 
-  // Build prompt context with any metadata attached (budget, travelers)
   let promptWithMeta = userQuery;
   if (metadata?.budget || metadata?.travelers) {
     promptWithMeta += `\n\n[Travel Parameters: Budget=${metadata.budget || 'Not specified'}, Travelers=${metadata.travelers || 'Not specified'}]`;
@@ -188,19 +159,21 @@ export async function streamGeminiQuery(
 
   let lastError: any = null;
 
-  // Try discovered models in order until one succeeds
   for (const candidateModel of validModels) {
     try {
+      // Configure model with system instruction safely formatted
       const model = genAI.getGenerativeModel({
         model: candidateModel,
-        systemInstruction: SYSTEM_INSTRUCTION,
+        systemInstruction: {
+          role: 'system',
+          parts: [{ text: SYSTEM_INSTRUCTION }]
+        }
       });
 
       const result = await model.generateContentStream({
         contents: formattedHistory,
       });
 
-      // Record request timestamp for rate limiting on success
       recordRequestTimestamp();
 
       let fullResponseText = '';
@@ -227,32 +200,33 @@ export async function streamGeminiQuery(
       console.warn(`Attempt with candidate model ${candidateModel} failed:`, error?.message || error);
       lastError = error;
 
-      // Handle 429 Too Many Requests / Resource Exhausted from Google API
-      if (
-        error?.status === 429 ||
-        error?.message?.includes('429') ||
-        error?.message?.includes('RESOURCE_EXHAUSTED') ||
-        error?.message?.includes('Quota exceeded')
-      ) {
-        throw new Error('API_RATE_LIMIT_EXCEEDED');
-      }
+      const errStr = (error?.message || '').toLowerCase();
 
-      // If it's an API Key invalid error, stop fallback immediately
+      // Only throw INVALID_API_KEY if error explicitly mentions invalid API key
       if (
-        error?.message?.includes('API_KEY_INVALID') ||
-        error?.status === 400 ||
-        error?.status === 403 ||
-        error?.message?.includes('API key not valid')
+        errStr.includes('api_key_invalid') ||
+        errStr.includes('api key not valid') ||
+        errStr.includes('invalid api key') ||
+        errStr.includes('unauthorized')
       ) {
         throw new Error('INVALID_API_KEY');
       }
 
-      // If 404 or unsupported method, continue to next candidate
       if (
-        error?.message?.includes('404') ||
-        error?.status === 404 ||
-        error?.message?.includes('not found') ||
-        error?.message?.includes('not supported')
+        error?.status === 429 ||
+        errStr.includes('429') ||
+        errStr.includes('resource_exhausted') ||
+        errStr.includes('quota exceeded')
+      ) {
+        throw new Error('API_RATE_LIMIT_EXCEEDED');
+      }
+
+      // Continue trying other candidate models if 404 or payload/system instruction issue
+      if (
+        errStr.includes('404') ||
+        errStr.includes('not found') ||
+        errStr.includes('not supported') ||
+        error?.status === 404
       ) {
         continue;
       }
@@ -261,16 +235,9 @@ export async function streamGeminiQuery(
     }
   }
 
-  // If all candidates failed
-  if (lastError?.message?.includes('404') || lastError?.message?.includes('not found')) {
-    throw new Error('MODEL_NOT_FOUND');
-  }
-  throw lastError;
+  throw lastError || new Error('MODEL_NOT_FOUND');
 }
 
-/**
- * Extracts follow-up suggestions from Gemini output if present.
- */
 export function extractFollowUpSuggestions(text: string): string[] {
   const defaultSuggestions = [
     '⚡ Make this itinerary cheaper',
