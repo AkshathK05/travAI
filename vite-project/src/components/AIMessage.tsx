@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { Compass, Copy, Check, Bookmark, Download, Sparkles } from 'lucide-react';
+import { Compass, Copy, Check, Bookmark, Download } from 'lucide-react';
 import { ChatMessage } from '../types';
-import { ThinkingState } from './ThinkingState';
 import { LoadingState } from './LoadingState';
 import { StreamingText } from './StreamingText';
 import { FlightCard } from './FlightCard';
@@ -58,14 +57,9 @@ export const AIMessage: React.FC<AIMessageProps> = ({
         {/* AI Message Body */}
         <div className="space-y-4">
           
-          {/* Thinking / Agent Trace */}
-          {(message.thinkingSteps || message.isStreaming) && (
-            <ThinkingState variant="Steps" />
-          )}
-
-          {/* Loading Indicator */}
+          {/* Loading Indicator when streaming before first content token */}
           {message.isStreaming && !message.content && (
-            <LoadingState label="Synthesizing flight, hotel & activity data..." variant="Drive" />
+            <LoadingState label="Generating AI response..." variant="Drive" />
           )}
 
           {/* Text Content with Inline Citations, Actions & Follow-ups */}
@@ -174,4 +168,3 @@ export const AIMessage: React.FC<AIMessageProps> = ({
     </div>
   );
 };
-

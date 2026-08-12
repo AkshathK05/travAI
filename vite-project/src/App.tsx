@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChatMessage, ChatSession, ThinkingStep } from './types';
+import { ChatMessage, ChatSession } from './types';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { LandingView } from './components/LandingView';
@@ -84,42 +84,19 @@ export default function App() {
       timestamp
     };
 
-    const initialThinkingSteps: ThinkingStep[] = [
-      { id: '1', text: `Connecting to ${selectedModel}...`, status: 'in_progress' },
-      { id: '2', text: 'Streaming live AI response...', status: 'pending' }
-    ];
-
     const newAiMsg: ChatMessage = {
       id: assistantMsgId,
       role: 'assistant',
       content: '',
       timestamp,
-      isStreaming: true,
-      thinkingSteps: initialThinkingSteps,
-      thinkingTimeSeconds: 1
+      isStreaming: true
     };
 
     setMessages((prev) => [...prev, newUserMsg, newAiMsg]);
     setIsGenerating(true);
 
-    // Direct Gemini API Stream Call (no context, no mock fallback)
+    // Direct Gemini API Stream Call
     try {
-      setMessages((prev) =>
-        prev.map((msg) => {
-          if (msg.id === assistantMsgId && msg.thinkingSteps) {
-            return {
-              ...msg,
-              thinkingSteps: [
-                { ...msg.thinkingSteps[0], status: 'completed' },
-                { ...msg.thinkingSteps[1], status: 'in_progress' }
-              ]
-            };
-          }
-          return msg;
-        })
-      );
-
-      // Call Gemini API with raw prompt (no prior chat context passed)
       const streamResult = await streamGeminiQuery(
         text,
         [], // empty array: do not pass chat history
@@ -151,14 +128,9 @@ export default function App() {
       setMessages((prev) =>
         prev.map((msg) => {
           if (msg.id === assistantMsgId) {
-            const completedSteps = (msg.thinkingSteps || []).map((s) => ({
-              ...s,
-              status: 'completed' as const
-            }));
             return {
               ...msg,
               content: fullText,
-              thinkingSteps: completedSteps,
               followUpSuggestions: followUps,
               isStreaming: false
             };
@@ -186,8 +158,7 @@ export default function App() {
             ? {
                 ...msg,
                 content: errorContent,
-                isStreaming: false,
-                thinkingSteps: (msg.thinkingSteps || []).map((s) => ({ ...s, status: 'completed' }))
+                isStreaming: false
               }
             : msg
         )
