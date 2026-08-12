@@ -1,7 +1,11 @@
 import { Pinecone } from '@pinecone-database/pinecone';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { ChunkRecord } from '../../src/services/chunker.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const INDEX_NAME = process.env.PINECONE_INDEX_NAME || 'travai-knowledge';
 const NAMESPACE_NAME = 'knowledge';
