@@ -19,12 +19,7 @@ export function removeApiKey(): void {
   localStorage.removeItem(API_KEY_STORAGE_KEY);
 }
 
-const SYSTEM_INSTRUCTION = `You are TravAI, an intelligent, friendly, and helpful AI assistant powered by Google Gemini.
-
-Guidelines:
-1. Respond naturally, accurately, and concisely to whatever the user asks.
-2. If greeted (e.g. "Hello", "Hi"), reply with a brief, friendly greeting.
-3. Use clean Markdown formatting when helpful.`;
+const SYSTEM_INSTRUCTION = 'You are TravAI, a helpful, intelligent, and concise AI Travel Concierge powered by Google Gemini.';
 
 export interface StreamResponseResult {
   stream: AsyncGenerator<string, void, unknown>;
@@ -86,7 +81,6 @@ export async function streamGeminiQuery(
   const genAI = new GoogleGenerativeAI(apiKey);
   const validModels = await discoverValidModelNames(apiKey);
 
-  // Send ONLY the user prompt directly without passing prior conversation context or attached metadata
   const contents = [
     {
       role: 'user',
@@ -100,10 +94,7 @@ export async function streamGeminiQuery(
     try {
       const model = genAI.getGenerativeModel({
         model: candidateModel,
-        systemInstruction: {
-          role: 'system',
-          parts: [{ text: SYSTEM_INSTRUCTION }],
-        },
+        systemInstruction: SYSTEM_INSTRUCTION,
       });
 
       const result = await model.generateContentStream({
