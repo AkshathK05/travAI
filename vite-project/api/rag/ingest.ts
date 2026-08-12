@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import fs from 'fs';
 import path from 'path';
-import { chunkMarkdown } from '../../src/services/chunker';
-import { upsertChunksToPinecone } from '../../server/services/pineconeService';
+import { chunkMarkdown } from '../../src/services/chunker.js';
+import { upsertChunksToPinecone } from '../../server/services/pineconeService.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST' && req.method !== 'GET') {
