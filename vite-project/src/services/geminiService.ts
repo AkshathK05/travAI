@@ -19,9 +19,48 @@ export function removeApiKey(): void {
   localStorage.removeItem(API_KEY_STORAGE_KEY);
 }
 
+const SYSTEM_INSTRUCTION = 'Output ONLY your direct response to the user. Never output internal thoughts, preambles, reasoning steps, goals, or draft options.';
+
 export interface StreamResponseResult {
   stream: AsyncGenerator<string, void, unknown>;
   getFullText: () => Promise<string>;
+}
+
+/**
+ * Cleans response text to strip any internal preambles or draft monologues if generated.
+ */
+export function cleanResponseText(rawText: string): string {
+  if (!rawText) return '';
+
+  // If the model outputted chain-of-thought preambles or draft options
+  if (
+    rawText.includes('The user said') ||
+    rawText.includes('Draft 1') ||
+    rawText.includes('Draft 2') ||
+    rawText.includes('Goal:') ||
+    rawText.includes('This is a standard greeting')
+  ) {
+    // Extract the final quoted response if available
+    const quotes = rawText.match(/"([^"]{3,300})"/g);
+    if (quotes && quotes.length > 0) {
+      const lastQuote = quotes[quotes.length - 1].replace(/^"/, '').replace(/"$/, '').trim();
+      if (lastQuote.length > 2) {
+        return lastQuote;
+      }
+    }
+
+    // Or extract the final non-empty line
+    const lines = rawText
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0 && !l.toLowerCase().startsWith('draft') && !l.toLowerCase().startsWith('goal:') && !l.toLowerCase().startsWith('the user said'));
+
+    if (lines.length > 0) {
+      return lines[lines.length - 1].replace(/^"/, '').replace(/"$/, '').trim();
+    }
+  }
+
+  return rawText;
 }
 
 /**
@@ -92,6 +131,7 @@ export async function streamGeminiQuery(
     try {
       const model = genAI.getGenerativeModel({
         model: candidateModel,
+        systemInstruction: SYSTEM_INSTRUCTION,
       });
 
       const result = await model.generateContentStream({
@@ -115,7 +155,7 @@ export async function streamGeminiQuery(
             const response = await result.response;
             fullResponseText = response.text();
           }
-          return fullResponseText;
+          return cleanResponseText(fullResponseText);
         },
       };
     } catch (error: any) {
