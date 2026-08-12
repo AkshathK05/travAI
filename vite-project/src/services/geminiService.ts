@@ -3,49 +3,11 @@ import { ChatMessage } from '../types';
 
 const API_KEY_STORAGE_KEY = 'travai_gemini_api_key';
 
-// Rate limiting configuration
-const MAX_REQUESTS_PER_MINUTE = 10;
-const MIN_COOLDOWN_MS = 2000;
-const requestTimestamps: number[] = [];
-
 /**
- * Checks client-side rate limit rules before dispatching an API call.
+ * Client-side rate limit disabled as requested. Always allows requests.
  */
 export function checkRateLimit(): { allowed: boolean; remainingSeconds?: number; reason?: string } {
-  const now = Date.now();
-  while (requestTimestamps.length > 0 && requestTimestamps[0] <= now - 60000) {
-    requestTimestamps.shift();
-  }
-
-  if (requestTimestamps.length > 0) {
-    const lastRequest = requestTimestamps[requestTimestamps.length - 1];
-    const timeSinceLast = now - lastRequest;
-    if (timeSinceLast < MIN_COOLDOWN_MS) {
-      const waitSec = Math.ceil((MIN_COOLDOWN_MS - timeSinceLast) / 1000);
-      return {
-        allowed: false,
-        remainingSeconds: waitSec,
-        reason: `Please wait ${waitSec} second${waitSec > 1 ? 's' : ''} between queries.`
-      };
-    }
-  }
-
-  if (requestTimestamps.length >= MAX_REQUESTS_PER_MINUTE) {
-    const oldestInWindow = requestTimestamps[0];
-    const resetTimeMs = oldestInWindow + 60000 - now;
-    const remainingSeconds = Math.ceil(resetTimeMs / 1000);
-    return {
-      allowed: false,
-      remainingSeconds,
-      reason: `Rate limit reached (${MAX_REQUESTS_PER_MINUTE} requests/min). Please wait ${remainingSeconds} seconds.`
-    };
-  }
-
   return { allowed: true };
-}
-
-function recordRequestTimestamp(): void {
-  requestTimestamps.push(Date.now());
 }
 
 export function getStoredApiKey(): string {
@@ -125,11 +87,6 @@ export async function streamGeminiQuery(
   modelName: string = 'Gemini 2.5 Flash',
   overrideApiKey?: string
 ): Promise<StreamResponseResult> {
-  const rateLimitStatus = checkRateLimit();
-  if (!rateLimitStatus.allowed) {
-    throw new Error(`RATE_LIMIT_EXCEEDED: ${rateLimitStatus.reason}`);
-  }
-
   const apiKey = overrideApiKey || getStoredApiKey();
 
   if (!apiKey) {
@@ -174,8 +131,6 @@ export async function streamGeminiQuery(
         contents: formattedHistory,
       });
 
-      recordRequestTimestamp();
-
       let fullResponseText = '';
 
       async function* generateStreamChunks() {
@@ -212,21 +167,14 @@ export async function streamGeminiQuery(
         throw new Error('INVALID_API_KEY');
       }
 
-      if (
-        error?.status === 429 ||
-        errStr.includes('429') ||
-        errStr.includes('resource_exhausted') ||
-        errStr.includes('quota exceeded')
-      ) {
-        throw new Error('API_RATE_LIMIT_EXCEEDED');
-      }
-
-      // Continue trying other candidate models if 404 or payload/system instruction issue
+      // Continue trying other candidate models if 404, 429, or payload issue
       if (
         errStr.includes('404') ||
+        errStr.includes('429') ||
         errStr.includes('not found') ||
         errStr.includes('not supported') ||
-        error?.status === 404
+        error?.status === 404 ||
+        error?.status === 429
       ) {
         continue;
       }
