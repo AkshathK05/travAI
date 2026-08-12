@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Key, X, ExternalLink, CheckCircle2, ShieldCheck, Sparkles, AlertTriangle, Trash2 } from 'lucide-react';
+import { Key, X, ExternalLink, CheckCircle2, ShieldCheck, Sparkles, AlertTriangle, Trash2, Loader2 } from 'lucide-react';
 import { getStoredApiKey, saveApiKey, removeApiKey } from '../services/geminiService';
 
 interface ApiKeyModalProps {
@@ -11,38 +11,57 @@ interface ApiKeyModalProps {
 export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onKeySaved }) => {
   const [keyInput, setKeyInput] = useState('');
   const [showKey, setShowKey] = useState(false);
-  const [isSaved, setIsSaved] = useState(false);
   const [currentKey, setCurrentKey] = useState('');
+  const [isValidating, setIsValidating] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       const existingKey = getStoredApiKey();
       setCurrentKey(existingKey);
       setKeyInput(existingKey);
-      setIsSaved(!!existingKey);
+      setValidationError(null);
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!keyInput.trim()) return;
+    const trimmed = keyInput.trim();
+    if (!trimmed) return;
 
-    saveApiKey(keyInput.trim());
-    setCurrentKey(keyInput.trim());
-    setIsSaved(true);
+    setIsValidating(true);
+    setValidationError(null);
+
+    // Live validation against Google Gemini ListModels API endpoint
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${trimmed}`);
+      if (res.status === 400 || res.status === 403) {
+        const errorData = await res.json().catch(() => ({}));
+        const message = errorData?.error?.message || 'Google rejected this API key. Please check your key at Google AI Studio.';
+        setValidationError(`Invalid Key: ${message}`);
+        setIsValidating(false);
+        return;
+      }
+    } catch (err) {
+      console.warn('Network check skipped:', err);
+    }
+
+    saveApiKey(trimmed);
+    setCurrentKey(trimmed);
+    setIsValidating(false);
     if (onKeySaved) onKeySaved();
     setTimeout(() => {
       onClose();
-    }, 400);
+    }, 300);
   };
 
   const handleRemove = () => {
     removeApiKey();
     setKeyInput('');
     setCurrentKey('');
-    setIsSaved(false);
+    setValidationError(null);
     if (onKeySaved) onKeySaved();
   };
 
@@ -111,6 +130,14 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onKey
             </div>
           )}
 
+          {/* Validation Error Banner */}
+          {validationError && (
+            <div className="p-3 bg-rose-100 border-[2.5px] border-black rounded-xl text-xs font-extrabold text-rose-800 flex items-start gap-2 shadow-[2.5px_2.5px_0px_#000000]">
+              <AlertTriangle className="w-4 h-4 text-rose-600 stroke-[3] shrink-0 mt-0.5" />
+              <div>{validationError}</div>
+            </div>
+          )}
+
           {/* Form */}
           <form onSubmit={handleSave} className="space-y-4">
             <div className="space-y-1.5">
@@ -122,7 +149,10 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onKey
                 <input
                   type={showKey ? 'text' : 'password'}
                   value={keyInput}
-                  onChange={(e) => setKeyInput(e.target.value)}
+                  onChange={(e) => {
+                    setKeyInput(e.target.value);
+                    if (validationError) setValidationError(null);
+                  }}
                   placeholder="AIzaSy..."
                   className="w-full px-3.5 py-2.5 bg-slate-50 border-[2.5px] border-black rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:bg-white shadow-[2.5px_2.5px_0px_#000000]"
                 />
@@ -152,20 +182,22 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onKey
                 <button
                   type="button"
                   onClick={onClose}
+                  disabled={isValidating}
                   className="px-4 py-2 bg-white hover:bg-slate-100 border-[2.5px] border-black rounded-xl text-xs font-black text-slate-900 shadow-[2.5px_2.5px_0px_#000000] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer font-heading uppercase"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={!keyInput.trim()}
-                  className={`px-5 py-2 border-[2.5px] border-black rounded-xl text-xs font-black shadow-[2.5px_2.5px_0px_#000000] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer font-heading uppercase ${
-                    keyInput.trim()
+                  disabled={!keyInput.trim() || isValidating}
+                  className={`px-5 py-2 border-[2.5px] border-black rounded-xl text-xs font-black shadow-[2.5px_2.5px_0px_#000000] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer font-heading uppercase flex items-center gap-1.5 ${
+                    keyInput.trim() && !isValidating
                       ? 'bg-[#FFE600] text-black hover:bg-[#FFF066]'
                       : 'bg-slate-200 text-slate-400 border-slate-400 cursor-not-allowed'
                   }`}
                 >
-                  Save & Connect
+                  {isValidating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>{isValidating ? 'Verifying...' : 'Save & Connect'}</span>
                 </button>
               </div>
             </div>

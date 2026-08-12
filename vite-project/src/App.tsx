@@ -262,12 +262,15 @@ export default function App() {
       );
     } catch (error: any) {
       console.error('Failed to query Gemini model:', error);
-      const isKeyError = error?.message === 'MISSING_API_KEY' || error?.message === 'INVALID_API_KEY';
+      const isMissingKey = error?.message === 'MISSING_API_KEY';
+      const isInvalidKey = error?.message === 'INVALID_API_KEY';
       const isRateLimit = error?.message?.includes('RATE_LIMIT_EXCEEDED') || error?.message === 'API_RATE_LIMIT_EXCEEDED';
 
       let errorContent = '';
-      if (isKeyError) {
-        errorContent = `⚠️ **Gemini API Key Required or Invalid**\n\nPlease configure your valid Google Gemini API key to stream live answers from Gemini.`;
+      if (isMissingKey) {
+        errorContent = `🔑 **Gemini API Key Required**\n\nPlease click **Set Gemini API Key** in the top navigation bar to paste your API key.`;
+      } else if (isInvalidKey) {
+        errorContent = `❌ **Invalid Gemini API Key**\n\nGoogle rejected the API key saved in your browser. Please click **Set Gemini API Key** in the header to update your key.`;
       } else if (isRateLimit) {
         errorContent = `⏳ **API Rate Limit Exceeded**\n\n${error?.message?.replace('RATE_LIMIT_EXCEEDED: ', '') || 'Google Gemini has temporarily rate limited requests. Please wait a few seconds before trying again.'}`;
       } else {
@@ -287,7 +290,7 @@ export default function App() {
         )
       );
 
-      if (isKeyError) {
+      if (isMissingKey || isInvalidKey) {
         setIsApiKeyModalOpen(true);
       }
     } finally {
