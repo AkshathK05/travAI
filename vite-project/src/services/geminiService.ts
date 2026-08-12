@@ -19,8 +19,6 @@ export function removeApiKey(): void {
   localStorage.removeItem(API_KEY_STORAGE_KEY);
 }
 
-const SYSTEM_INSTRUCTION = 'You are TravAI, a helpful, intelligent, and concise AI Travel Concierge powered by Google Gemini.';
-
 export interface StreamResponseResult {
   stream: AsyncGenerator<string, void, unknown>;
   getFullText: () => Promise<string>;
@@ -63,13 +61,13 @@ async function discoverValidModelNames(apiKey: string): Promise<string[]> {
 }
 
 /**
- * Sends a query to the Gemini model standalone without passing previous context or metadata.
+ * Sends a query directly to the Gemini model.
  */
 export async function streamGeminiQuery(
   userQuery: string,
   _chatHistory: ChatMessage[] = [],
   _metadata?: { budget?: string; travelers?: string },
-  modelName: string = 'Gemini 2.5 Flash',
+  _modelName: string = 'Gemini 2.5 Flash',
   overrideApiKey?: string
 ): Promise<StreamResponseResult> {
   const apiKey = overrideApiKey || getStoredApiKey();
@@ -94,7 +92,6 @@ export async function streamGeminiQuery(
     try {
       const model = genAI.getGenerativeModel({
         model: candidateModel,
-        systemInstruction: SYSTEM_INSTRUCTION,
       });
 
       const result = await model.generateContentStream({
