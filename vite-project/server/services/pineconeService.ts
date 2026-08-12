@@ -58,26 +58,42 @@ export interface PineconeMatch {
   score?: number;
   text: string;
   source: string;
+  sourceUrl?: string;
+  country?: string;
+  region?: string;
+  prefecture?: string;
   destination: string;
   section: string;
+  lastVerified?: string;
 }
 
 /**
- * Upserts markdown chunk records into Pinecone using integrated embeddings.
+ * Upserts markdown chunk records into Pinecone using integrated embeddings in batches.
  */
-export async function upsertChunksToPinecone(chunks: ChunkRecord[]) {
+export async function upsertChunksToPinecone(chunks: ChunkRecord[], batchSize = 100) {
   const ns = getKnowledgeNamespace();
+  let totalUpserted = 0;
 
-  const records = chunks.map((c) => ({
-    id: c.id,
-    text: c.text,
-    source: c.source,
-    destination: c.destination,
-    section: c.section,
-  }));
+  for (let i = 0; i < chunks.length; i += batchSize) {
+    const batch = chunks.slice(i, i + batchSize);
+    const records = batch.map((c) => ({
+      id: c.id,
+      text: c.text,
+      source: c.source,
+      sourceUrl: c.sourceUrl,
+      country: c.country,
+      region: c.region,
+      prefecture: c.prefecture,
+      destination: c.destination,
+      section: c.section,
+      lastVerified: c.lastVerified,
+    }));
 
-  await ns.upsertRecords({ records });
-  return records.length;
+    await ns.upsertRecords({ records });
+    totalUpserted += records.length;
+  }
+
+  return totalUpserted;
 }
 
 /**
@@ -94,7 +110,17 @@ export async function searchChunksInPinecone(
       inputs: { text: queryText },
       topK,
     },
-    fields: ['text', 'source', 'destination', 'section'],
+    fields: [
+      'text',
+      'source',
+      'sourceUrl',
+      'country',
+      'region',
+      'prefecture',
+      'destination',
+      'section',
+      'lastVerified',
+    ],
   });
 
   const hits = response.result?.hits || [];
@@ -106,8 +132,13 @@ export async function searchChunksInPinecone(
       score: hit.score,
       text: fields.text || '',
       source: fields.source || '',
+      sourceUrl: fields.sourceUrl || '',
+      country: fields.country || 'Japan',
+      region: fields.region || '',
+      prefecture: fields.prefecture || '',
       destination: fields.destination || '',
       section: fields.section || '',
+      lastVerified: fields.lastVerified || '',
     };
   });
 }

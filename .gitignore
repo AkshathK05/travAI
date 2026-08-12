@@ -1,2 +1,5 @@
 .vercel
 .env*
+.tmp/
+vite-project/.tmp/
+vite-project/data/

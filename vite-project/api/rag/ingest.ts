@@ -2,11 +2,32 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { chunkMarkdown } from '../../src/services/chunker.js';
+import { chunkMarkdown, ChunkRecord } from '../../src/services/chunker.js';
 import { upsertChunksToPinecone } from '../../server/services/pineconeService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+/**
+ * Recursively scans directory for markdown files.
+ */
+function getAllMarkdownFiles(dirPath: string): string[] {
+  let results: string[] = [];
+  if (!fs.existsSync(dirPath)) return results;
+
+  const list = fs.readdirSync(dirPath, { withFileTypes: true });
+
+  for (const dirent of list) {
+    const fullPath = path.join(dirPath, dirent.name);
+    if (dirent.isDirectory()) {
+      results = results.concat(getAllMarkdownFiles(fullPath));
+    } else if (dirent.isFile() && dirent.name.endsWith('.md')) {
+      results.push(fullPath);
+    }
+  }
+
+  return results;
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST' && req.method !== 'GET') {
@@ -14,33 +35,68 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    let dataPath = path.join(process.cwd(), 'data', 'japan.md');
-    if (!fs.existsSync(dataPath)) {
-      dataPath = path.join(__dirname, '..', '..', 'data', 'japan.md');
+    let baseDir = path.join(process.cwd(), '.tmp', 'japan');
+    if (!fs.existsSync(baseDir)) {
+      baseDir = path.join(process.cwd(), 'data', 'japan');
+    }
+    if (!fs.existsSync(baseDir)) {
+      baseDir = path.join(__dirname, '..', '..', '.tmp', 'japan');
+    }
+    if (!fs.existsSync(baseDir)) {
+      baseDir = path.join(__dirname, '..', '..', 'data', 'japan');
     }
 
-    if (!fs.existsSync(dataPath)) {
+    let files = getAllMarkdownFiles(baseDir);
+
+    // Fallback if data/japan directory not present but single file is
+    if (files.length === 0) {
+      let legacyFile = path.join(process.cwd(), 'data', 'japan.md');
+      if (!fs.existsSync(legacyFile)) {
+        legacyFile = path.join(__dirname, '..', '..', 'data', 'japan.md');
+      }
+      if (fs.existsSync(legacyFile)) {
+        files = [legacyFile];
+      }
+    }
+
+    if (files.length === 0) {
       return res.status(404).json({
-        error: `Source data file not found at ${dataPath}`,
+        error: `No markdown data files found under ${baseDir}`,
       });
     }
 
-    const markdown = fs.readFileSync(dataPath, 'utf-8');
-    const chunks = chunkMarkdown(markdown, 'japan.md', 'Japan');
+    const allChunks: ChunkRecord[] = [];
+    const fileSummaries: { file: string; chunks: number }[] = [];
 
-    if (chunks.length === 0) {
+    for (const filePath of files) {
+      const markdown = fs.readFileSync(filePath, 'utf-8');
+      const relativePath = path.relative(baseDir, filePath).replace(/\\/g, '/');
+      const fileName = path.basename(filePath, '.md');
+
+      const chunks = chunkMarkdown(
+        markdown,
+        'Japan National Tourism Organization (JNTO)',
+        fileName
+      );
+
+      allChunks.push(...chunks);
+      fileSummaries.push({ file: relativePath, chunks: chunks.length });
+    }
+
+    if (allChunks.length === 0) {
       return res.status(400).json({
-        error: 'No chunks generated from source data.',
+        error: 'No valid chunks generated from source data files.',
       });
     }
 
-    const upsertedCount = await upsertChunksToPinecone(chunks);
+    const totalUpserted = await upsertChunksToPinecone(allChunks, 100);
 
     return res.status(200).json({
       success: true,
-      processed: chunks.length,
-      upserted: upsertedCount,
-      chunks: chunks.map((c) => ({ id: c.id, section: c.section })),
+      filesProcessed: files.length,
+      chunksCreated: allChunks.length,
+      recordsUpserted: totalUpserted,
+      files: fileSummaries,
       errors: [],
     });
   } catch (error: any) {
