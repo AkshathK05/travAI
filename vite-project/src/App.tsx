@@ -8,13 +8,29 @@ import { UserMessage } from './components/UserMessage';
 import { AIMessage } from './components/AIMessage';
 import { ChatInput } from './components/ChatInput';
 import { ExportModal } from './components/ExportModal';
+import { ApiKeyModal } from './components/ApiKeyModal';
+import {
+  getStoredApiKey,
+  streamGeminiQuery,
+  extractFollowUpSuggestions
+} from './services/geminiService';
 
 export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [selectedModel, setSelectedModel] = useState('TravAI Core');
+  const [selectedModel, setSelectedModel] = useState('Gemini 2.5 Flash');
   const [currency, setCurrency] = useState('₹ INR');
   const [isGenerating, setIsGenerating] = useState(false);
   const [exportMessage, setExportMessage] = useState<ChatMessage | null>(null);
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
+  const [hasApiKey, setHasApiKey] = useState(false);
+
+  useEffect(() => {
+    setHasApiKey(!!getStoredApiKey());
+  }, []);
+
+  const refreshApiKeyStatus = () => {
+    setHasApiKey(!!getStoredApiKey());
+  };
 
   const [sessions] = useState<ChatSession[]>([
     {
@@ -55,8 +71,17 @@ export default function App() {
     scrollToBottom();
   }, [messages, isGenerating]);
 
-  const handleSendMessage = (text: string, metadata?: { budget?: string; travelers?: string }) => {
+  const handleSendMessage = async (text: string, metadata?: { budget?: string; travelers?: string }) => {
     if (isGenerating) return;
+
+    const currentApiKey = getStoredApiKey();
+    const isGeminiModel = selectedModel.startsWith('Gemini');
+
+    // If Gemini model selected but no key configured, open API key modal & warn
+    if (isGeminiModel && !currentApiKey) {
+      setIsApiKeyModalOpen(true);
+      return;
+    }
 
     const userMsgId = `user-${Date.now()}`;
     const assistantMsgId = `ai-${Date.now()}`;
@@ -70,11 +95,9 @@ export default function App() {
     };
 
     const initialThinkingSteps: ThinkingStep[] = [
-      { id: '1', text: `Analyzing constraints (${metadata?.budget || 'Budget'} & ${metadata?.travelers || '2 Adults'})`, status: 'in_progress' },
-      { id: '2', text: 'Searching flight availability', status: 'pending' },
-      { id: '3', text: 'Comparing hotel locations & rates', status: 'pending' },
-      { id: '4', text: 'Curating food & cultural activities', status: 'pending' },
-      { id: '5', text: 'Optimizing day-by-day itinerary timing', status: 'pending' }
+      { id: '1', text: `Analyzing travel constraints (${metadata?.budget || 'Budget'} & ${metadata?.travelers || '2 Adults'})`, status: 'in_progress' },
+      { id: '2', text: `Connecting to ${selectedModel}...`, status: 'pending' },
+      { id: '3', text: 'Curating flights, hotels & day-by-day itinerary', status: 'pending' }
     ];
 
     const newAiMsg: ChatMessage = {
@@ -84,13 +107,82 @@ export default function App() {
       timestamp,
       isStreaming: true,
       thinkingSteps: initialThinkingSteps,
-      thinkingTimeSeconds: 4
+      thinkingTimeSeconds: 2
     };
 
     setMessages((prev) => [...prev, newUserMsg, newAiMsg]);
     setIsGenerating(true);
 
-    setTimeout(() => {
+    // If Demo offline mode selected, fallback to pre-baked mock responses
+    if (!isGeminiModel || selectedModel.includes('Demo')) {
+      setTimeout(() => {
+        setMessages((prev) =>
+          prev.map((msg) => {
+            if (msg.id === assistantMsgId && msg.thinkingSteps) {
+              return {
+                ...msg,
+                thinkingSteps: msg.thinkingSteps.map((s) => ({ ...s, status: 'completed' }))
+              };
+            }
+            return msg;
+          })
+        );
+      }, 1000);
+
+      setTimeout(() => {
+        let responsePayload = getMockResponseForInput(text);
+        if (text.toLowerCase().includes('cheaper')) {
+          responsePayload = {
+            content: CHEAPER_DAY3_RESPONSE,
+            followUpSuggestions: ['Add more food spots in Osaka', 'Swap hotel to Shibuya', 'Show direct flights']
+          };
+        } else if (text.toLowerCase().includes('food')) {
+          responsePayload = {
+            content: MORE_FOOD_RESPONSE,
+            followUpSuggestions: ['Make Day 3 cheaper', 'Swap hotel to Shibuya', 'Compare Japan vs Vietnam']
+          };
+        }
+
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMsgId
+              ? { ...msg, ...responsePayload, isStreaming: false }
+              : msg
+          )
+        );
+        setIsGenerating(false);
+      }, 2000);
+      return;
+    }
+
+    // Live Gemini API Stream Call
+    try {
+      // Step 1 complete
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (msg.id === assistantMsgId && msg.thinkingSteps) {
+            return {
+              ...msg,
+              thinkingSteps: [
+                { ...msg.thinkingSteps[0], status: 'completed' },
+                { ...msg.thinkingSteps[1], status: 'in_progress' },
+                msg.thinkingSteps[2]
+              ]
+            };
+          }
+          return msg;
+        })
+      );
+
+      const streamResult = await streamGeminiQuery(
+        text,
+        messages,
+        metadata,
+        selectedModel,
+        currentApiKey
+      );
+
+      // Step 2 & 3 in progress
       setMessages((prev) =>
         prev.map((msg) => {
           if (msg.id === assistantMsgId && msg.thinkingSteps) {
@@ -99,32 +191,35 @@ export default function App() {
               thinkingSteps: [
                 { ...msg.thinkingSteps[0], status: 'completed' },
                 { ...msg.thinkingSteps[1], status: 'completed' },
-                { ...msg.thinkingSteps[2], status: 'in_progress' },
-                msg.thinkingSteps[3],
-                msg.thinkingSteps[4]
+                { ...msg.thinkingSteps[2], status: 'in_progress' }
               ]
             };
           }
           return msg;
         })
       );
-    }, 1000);
 
-    setTimeout(() => {
-      let responsePayload = getMockResponseForInput(text);
+      let accumulatedContent = '';
 
-      if (text.toLowerCase().includes('cheaper')) {
-        responsePayload = {
-          content: CHEAPER_DAY3_RESPONSE,
-          followUpSuggestions: ['Add more food spots in Osaka', 'Swap hotel to Shibuya', 'Show direct flights']
-        };
-      } else if (text.toLowerCase().includes('food')) {
-        responsePayload = {
-          content: MORE_FOOD_RESPONSE,
-          followUpSuggestions: ['Make Day 3 cheaper', 'Swap hotel to Shibuya', 'Compare Japan vs Vietnam']
-        };
+      for await (const chunk of streamResult.stream) {
+        accumulatedContent += chunk;
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMsgId
+              ? {
+                  ...msg,
+                  content: accumulatedContent,
+                  isStreaming: true
+                }
+              : msg
+          )
+        );
       }
 
+      const fullText = await streamResult.getFullText();
+      const followUps = extractFollowUpSuggestions(fullText);
+
+      // Final state: completed
       setMessages((prev) =>
         prev.map((msg) => {
           if (msg.id === assistantMsgId) {
@@ -132,25 +227,44 @@ export default function App() {
               ...s,
               status: 'completed' as const
             }));
-
             return {
               ...msg,
-              ...responsePayload,
+              content: fullText,
               thinkingSteps: completedSteps,
-              isStreaming: true
+              followUpSuggestions: followUps,
+              isStreaming: false
             };
           }
           return msg;
         })
       );
-    }, 2200);
+    } catch (error: any) {
+      console.error('Failed to query Gemini model:', error);
+      const isKeyError = error?.message === 'MISSING_API_KEY' || error?.message === 'INVALID_API_KEY';
 
-    setTimeout(() => {
+      const errorContent = isKeyError
+        ? `⚠️ **Gemini API Key Required or Invalid**\n\nPlease configure your valid Google Gemini API key to stream live answers from Gemini.\n\n[Click here to set your Gemini API Key](action:open_key_modal)`
+        : `⚠️ **Unable to connect to Gemini API**\n\n${error?.message || 'An error occurred while connecting to the Gemini model. Please check your network or try again.'}`;
+
       setMessages((prev) =>
-        prev.map((msg) => (msg.id === assistantMsgId ? { ...msg, isStreaming: false } : msg))
+        prev.map((msg) =>
+          msg.id === assistantMsgId
+            ? {
+                ...msg,
+                content: errorContent,
+                isStreaming: false,
+                thinkingSteps: (msg.thinkingSteps || []).map((s) => ({ ...s, status: 'completed' }))
+              }
+            : msg
+        )
       );
+
+      if (isKeyError) {
+        setIsApiKeyModalOpen(true);
+      }
+    } finally {
       setIsGenerating(false);
-    }, 3800);
+    }
   };
 
   const handleNewChat = () => {
@@ -194,6 +308,8 @@ export default function App() {
         selectedModel={selectedModel}
         onSelectModel={setSelectedModel}
         isLanding={messages.length === 0}
+        onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
+        hasApiKey={hasApiKey}
       />
 
       <Sidebar
@@ -239,6 +355,12 @@ export default function App() {
         isOpen={!!exportMessage}
         onClose={() => setExportMessage(null)}
         message={exportMessage}
+      />
+
+      <ApiKeyModal
+        isOpen={isApiKeyModalOpen}
+        onClose={() => setIsApiKeyModalOpen(false)}
+        onKeySaved={refreshApiKeyStatus}
       />
 
     </div>

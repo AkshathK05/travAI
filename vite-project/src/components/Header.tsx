@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, PanelLeft, ChevronDown, Check, Compass, User } from 'lucide-react';
+import { Plus, PanelLeft, ChevronDown, Check, Compass, User, Key, Sparkles } from 'lucide-react';
 
 interface HeaderProps {
   onToggleSidebar: () => void;
@@ -7,6 +7,8 @@ interface HeaderProps {
   selectedModel: string;
   onSelectModel: (model: string) => void;
   isLanding?: boolean;
+  onOpenApiKeyModal: () => void;
+  hasApiKey: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -14,13 +16,17 @@ export const Header: React.FC<HeaderProps> = ({
   onNewChat,
   selectedModel,
   onSelectModel,
-  isLanding = false
+  isLanding = false,
+  onOpenApiKeyModal,
+  hasApiKey
 }) => {
   const [showModelMenu, setShowModelMenu] = useState(false);
 
   const models = [
-    { id: 'TravAI Core', desc: 'Standard travel planning engine' },
-    { id: 'TravAI Pro', desc: 'Advanced routing & budget optimization' }
+    { id: 'Gemini 2.5 Flash', desc: 'Fast & Intelligent (Google Gemini API)', recommended: true },
+    { id: 'Gemini 2.0 Flash', desc: 'Real-time Multimodal (Google Gemini API)' },
+    { id: 'Gemini 1.5 Pro', desc: 'Deep Reasoning & Complex Itineraries' },
+    { id: 'TravAI Core (Demo)', desc: 'Pre-baked offline travel templates' }
   ];
 
   return (
@@ -59,14 +65,20 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={() => setShowModelMenu(!showModelMenu)}
               className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 border-[2.5px] border-black text-slate-900 text-xs font-extrabold shadow-[2.5px_2.5px_0px_#000000] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer"
             >
+              <Sparkles className="w-3.5 h-3.5 text-amber-500 stroke-[3]" />
               <span>{selectedModel}</span>
               <ChevronDown className="w-4 h-4 text-black stroke-[3]" />
             </button>
 
             {showModelMenu && (
-              <div className="absolute left-0 top-full mt-2 w-64 bg-white border-[3px] border-black rounded-2xl shadow-[5px_5px_0px_#000000] p-2 z-50 animate-in fade-in zoom-in-95">
-                <div className="text-[10px] font-black text-slate-500 px-2.5 py-1 uppercase tracking-wider font-heading">
-                  AI Planning Engine
+              <div className="absolute left-0 top-full mt-2 w-72 bg-white border-[3px] border-black rounded-2xl shadow-[5px_5px_0px_#000000] p-2 z-50 animate-in fade-in zoom-in-95">
+                <div className="text-[10px] font-black text-slate-500 px-2.5 py-1 uppercase tracking-wider font-heading flex items-center justify-between">
+                  <span>AI Planning Engine</span>
+                  {hasApiKey ? (
+                    <span className="text-emerald-700 font-extrabold text-[9px] bg-emerald-100 px-1.5 py-0.5 rounded border border-emerald-500">API CONNECTED</span>
+                  ) : (
+                    <span className="text-amber-700 font-extrabold text-[9px] bg-amber-100 px-1.5 py-0.5 rounded border border-amber-500">KEY REQUIRED</span>
+                  )}
                 </div>
                 {models.map((m) => (
                   <button
@@ -82,7 +94,12 @@ export const Header: React.FC<HeaderProps> = ({
                     }`}
                   >
                     <div>
-                      <div className="text-xs font-extrabold font-heading">{m.id}</div>
+                      <div className="text-xs font-extrabold font-heading flex items-center gap-1.5">
+                        <span>{m.id}</span>
+                        {m.recommended && (
+                          <span className="text-[9px] font-black bg-black text-[#FFE600] px-1 py-0.2 rounded">RECOMMENDED</span>
+                        )}
+                      </div>
                       <div className="text-[11px] font-medium text-slate-700 mt-0.5">{m.desc}</div>
                     </div>
                     {selectedModel === m.id && (
@@ -95,8 +112,26 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Right: New Chat & User Profile */}
+        {/* Right: API Key Button, New Chat & User Profile */}
         <div className="flex items-center gap-2.5">
+
+          {/* Gemini API Key Button */}
+          <button
+            type="button"
+            onClick={onOpenApiKeyModal}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border-[2.5px] border-black text-xs font-black shadow-[2.5px_2.5px_0px_#000000] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer font-heading uppercase tracking-wide ${
+              hasApiKey
+                ? 'bg-emerald-300 hover:bg-emerald-400 text-slate-900'
+                : 'bg-[#00F0FF] hover:bg-[#66F5FF] text-black animate-pulse'
+            }`}
+            title="Configure Gemini API Key"
+          >
+            <Key className="w-3.5 h-3.5 stroke-[3]" />
+            <span className="hidden sm:inline">
+              {hasApiKey ? 'Gemini Key Connected' : 'Set Gemini API Key'}
+            </span>
+          </button>
+
           {!isLanding && (
             <button
               type="button"
@@ -120,5 +155,3 @@ export const Header: React.FC<HeaderProps> = ({
     </header>
   );
 };
-
-
