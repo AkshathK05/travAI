@@ -25,8 +25,7 @@ export const Header: React.FC<HeaderProps> = ({
   const models = [
     { id: 'Gemini 2.5 Flash', desc: 'Fast & Intelligent (Google Gemini API)', recommended: true },
     { id: 'Gemini 2.0 Flash', desc: 'Real-time Multimodal (Google Gemini API)' },
-    { id: 'Gemini 1.5 Pro', desc: 'Deep Reasoning & Complex Itineraries' },
-    { id: 'TravAI Core (Demo)', desc: 'Pre-baked offline travel templates' }
+    { id: 'Gemini 1.5 Pro', desc: 'Deep Reasoning & Complex Itineraries' }
   ];
 
   return (
