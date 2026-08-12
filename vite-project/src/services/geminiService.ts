@@ -3,6 +3,59 @@ import { ChatMessage } from '../types';
 
 const API_KEY_STORAGE_KEY = 'travai_gemini_api_key';
 
+// Rate limiting configuration
+const MAX_REQUESTS_PER_MINUTE = 10;
+const MIN_COOLDOWN_MS = 2000; // 2 seconds between consecutive requests
+const requestTimestamps: number[] = [];
+
+/**
+ * Checks client-side rate limit rules before dispatching an API call.
+ * Returns { allowed: true } or { allowed: false, remainingSeconds, reason }.
+ */
+export function checkRateLimit(): { allowed: boolean; remainingSeconds?: number; reason?: string } {
+  const now = Date.now();
+
+  // Remove timestamps older than 60 seconds (1 minute window)
+  while (requestTimestamps.length > 0 && requestTimestamps[0] <= now - 60000) {
+    requestTimestamps.shift();
+  }
+
+  // Check 1: Minimum cooldown between requests
+  if (requestTimestamps.length > 0) {
+    const lastRequest = requestTimestamps[requestTimestamps.length - 1];
+    const timeSinceLast = now - lastRequest;
+    if (timeSinceLast < MIN_COOLDOWN_MS) {
+      const waitSec = Math.ceil((MIN_COOLDOWN_MS - timeSinceLast) / 1000);
+      return {
+        allowed: false,
+        remainingSeconds: waitSec,
+        reason: `Please wait ${waitSec} second${waitSec > 1 ? 's' : ''} between queries.`
+      };
+    }
+  }
+
+  // Check 2: Maximum requests per minute
+  if (requestTimestamps.length >= MAX_REQUESTS_PER_MINUTE) {
+    const oldestInWindow = requestTimestamps[0];
+    const resetTimeMs = oldestInWindow + 60000 - now;
+    const remainingSeconds = Math.ceil(resetTimeMs / 1000);
+    return {
+      allowed: false,
+      remainingSeconds,
+      reason: `Rate limit reached (${MAX_REQUESTS_PER_MINUTE} requests/min). Please wait ${remainingSeconds} seconds.`
+    };
+  }
+
+  return { allowed: true };
+}
+
+/**
+ * Records a successful request timestamp for rate limit tracking.
+ */
+function recordRequestTimestamp(): void {
+  requestTimestamps.push(Date.now());
+}
+
 /**
  * Retrieves the stored Gemini API key from localStorage or Vite environment variables.
  */
@@ -88,7 +141,7 @@ async function discoverValidModelNames(apiKey: string): Promise<string[]> {
 
 /**
  * Sends a query to the Gemini model and yields chunks as they stream.
- * Dynamically discovers models enabled for the user's API key.
+ * Includes rate limit checks and API 429 error handling.
  */
 export async function streamGeminiQuery(
   userQuery: string,
@@ -97,6 +150,12 @@ export async function streamGeminiQuery(
   modelName: string = 'Gemini 2.5 Flash',
   overrideApiKey?: string
 ): Promise<StreamResponseResult> {
+  // Check client-side rate limit first
+  const rateLimitStatus = checkRateLimit();
+  if (!rateLimitStatus.allowed) {
+    throw new Error(`RATE_LIMIT_EXCEEDED: ${rateLimitStatus.reason}`);
+  }
+
   const apiKey = overrideApiKey || getStoredApiKey();
 
   if (!apiKey) {
@@ -141,6 +200,9 @@ export async function streamGeminiQuery(
         contents: formattedHistory,
       });
 
+      // Record request timestamp for rate limiting on success
+      recordRequestTimestamp();
+
       let fullResponseText = '';
 
       async function* generateStreamChunks() {
@@ -164,6 +226,16 @@ export async function streamGeminiQuery(
     } catch (error: any) {
       console.warn(`Attempt with candidate model ${candidateModel} failed:`, error?.message || error);
       lastError = error;
+
+      // Handle 429 Too Many Requests / Resource Exhausted from Google API
+      if (
+        error?.status === 429 ||
+        error?.message?.includes('429') ||
+        error?.message?.includes('RESOURCE_EXHAUSTED') ||
+        error?.message?.includes('Quota exceeded')
+      ) {
+        throw new Error('API_RATE_LIMIT_EXCEEDED');
+      }
 
       // If it's an API Key invalid error, stop fallback immediately
       if (

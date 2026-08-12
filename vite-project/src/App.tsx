@@ -12,7 +12,8 @@ import { ApiKeyModal } from './components/ApiKeyModal';
 import {
   getStoredApiKey,
   streamGeminiQuery,
-  extractFollowUpSuggestions
+  extractFollowUpSuggestions,
+  checkRateLimit
 } from './services/geminiService';
 
 export default function App() {
@@ -80,6 +81,27 @@ export default function App() {
     // If Gemini model selected but no key configured, open API key modal & warn
     if (isGeminiModel && !currentApiKey) {
       setIsApiKeyModalOpen(true);
+      return;
+    }
+
+    // Check client rate limit before rendering streaming placeholders
+    const rateCheck = checkRateLimit();
+    if (isGeminiModel && !rateCheck.allowed) {
+      const userMsgId = `user-${Date.now()}`;
+      const assistantMsgId = `ai-${Date.now()}`;
+      const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      setMessages((prev) => [
+        ...prev,
+        { id: userMsgId, role: 'user', content: text, timestamp },
+        {
+          id: assistantMsgId,
+          role: 'assistant',
+          content: `⏳ **Rate Limit Exceeded**\n\n${rateCheck.reason}`,
+          timestamp,
+          isStreaming: false
+        }
+      ]);
       return;
     }
 
@@ -241,10 +263,16 @@ export default function App() {
     } catch (error: any) {
       console.error('Failed to query Gemini model:', error);
       const isKeyError = error?.message === 'MISSING_API_KEY' || error?.message === 'INVALID_API_KEY';
+      const isRateLimit = error?.message?.includes('RATE_LIMIT_EXCEEDED') || error?.message === 'API_RATE_LIMIT_EXCEEDED';
 
-      const errorContent = isKeyError
-        ? `⚠️ **Gemini API Key Required or Invalid**\n\nPlease configure your valid Google Gemini API key to stream live answers from Gemini.\n\n[Click here to set your Gemini API Key](action:open_key_modal)`
-        : `⚠️ **Unable to connect to Gemini API**\n\n${error?.message || 'An error occurred while connecting to the Gemini model. Please check your network or try again.'}`;
+      let errorContent = '';
+      if (isKeyError) {
+        errorContent = `⚠️ **Gemini API Key Required or Invalid**\n\nPlease configure your valid Google Gemini API key to stream live answers from Gemini.`;
+      } else if (isRateLimit) {
+        errorContent = `⏳ **API Rate Limit Exceeded**\n\n${error?.message?.replace('RATE_LIMIT_EXCEEDED: ', '') || 'Google Gemini has temporarily rate limited requests. Please wait a few seconds before trying again.'}`;
+      } else {
+        errorContent = `⚠️ **Unable to connect to Gemini API**\n\n${error?.message || 'An error occurred while connecting to the Gemini model.'}`;
+      }
 
       setMessages((prev) =>
         prev.map((msg) =>
