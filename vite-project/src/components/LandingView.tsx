@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, Sparkles, MapPin, Compass } from 'lucide-react';
+import { ArrowRight, Sparkles, Compass, Key, ShieldCheck } from 'lucide-react';
 import { ChatInput } from './ChatInput';
 
 interface LandingViewProps {
@@ -36,12 +36,12 @@ export const LandingView: React.FC<LandingViewProps> = ({ onSend, disabled }) =>
   ];
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-4 py-12 max-w-3xl mx-auto w-full">
+    <div className="flex-1 flex flex-col items-center justify-center px-4 py-10 max-w-3xl mx-auto w-full">
       
       {/* Greeting Headline */}
-      <div className="text-center space-y-3 mb-8">
+      <div className="text-center space-y-3 mb-6">
         <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#FFE600] border-[2.5px] border-black rounded-lg text-xs font-black uppercase tracking-wider shadow-[2.5px_2.5px_0px_#000000]">
-          <Sparkles className="w-4 h-4 stroke-[3]" /> Autonomous AI Travel Planner
+          <ShieldCheck className="w-4 h-4 text-black stroke-[3]" /> BYOK Model • Bring Your Own Gemini Key
         </div>
 
         <h1 className="text-4xl sm:text-5xl font-black text-slate-900 tracking-tight font-heading uppercase leading-tight">
@@ -53,8 +53,17 @@ export const LandingView: React.FC<LandingViewProps> = ({ onSend, disabled }) =>
       </div>
 
       {/* Centered Chat Composer */}
-      <div className="w-full mb-10">
+      <div className="w-full mb-8">
         <ChatInput onSend={onSend} disabled={disabled} isLanding={true} />
+
+        {/* BYOK Architecture Notice */}
+        <div className="mt-3 p-3 bg-white border-[2.5px] border-black rounded-xl text-xs font-extrabold text-slate-800 flex items-center justify-between shadow-[3px_3px_0px_#000000]">
+          <div className="flex items-center gap-2">
+            <Key className="w-4 h-4 text-black stroke-[2.5] shrink-0" />
+            <span><strong>BYOK Architecture:</strong> Bring Your Own Key. Your Gemini API key stays 100% private in your browser.</span>
+          </div>
+          <span className="hidden sm:inline-block text-[10px] font-black uppercase bg-[#00F0FF] text-black px-2 py-0.5 rounded border border-black shadow-[1px_1px_0px_#000]">Private & Secure</span>
+        </div>
       </div>
 
       {/* Neo-Brutalist Prompt Cards */}
@@ -97,4 +106,3 @@ export const LandingView: React.FC<LandingViewProps> = ({ onSend, disabled }) =>
     </div>
   );
 };
-

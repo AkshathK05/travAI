@@ -74,9 +74,9 @@ export const Header: React.FC<HeaderProps> = ({
                 <div className="text-[10px] font-black text-slate-500 px-2.5 py-1 uppercase tracking-wider font-heading flex items-center justify-between">
                   <span>AI Planning Engine</span>
                   {hasApiKey ? (
-                    <span className="text-emerald-700 font-extrabold text-[9px] bg-emerald-100 px-1.5 py-0.5 rounded border border-emerald-500">API CONNECTED</span>
+                    <span className="text-emerald-700 font-extrabold text-[9px] bg-emerald-100 px-1.5 py-0.5 rounded border border-emerald-500">BYOK CONNECTED</span>
                   ) : (
-                    <span className="text-amber-700 font-extrabold text-[9px] bg-amber-100 px-1.5 py-0.5 rounded border border-amber-500">KEY REQUIRED</span>
+                    <span className="text-amber-700 font-extrabold text-[9px] bg-amber-100 px-1.5 py-0.5 rounded border border-amber-500">BYOK REQUIRED</span>
                   )}
                 </div>
                 {models.map((m) => (
@@ -111,10 +111,10 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Right: API Key Button, New Chat & User Profile */}
+        {/* Right: BYOK API Key Button, New Chat & User Profile */}
         <div className="flex items-center gap-2.5">
 
-          {/* Gemini API Key Button */}
+          {/* Gemini BYOK API Key Button */}
           <button
             type="button"
             onClick={onOpenApiKeyModal}
@@ -123,11 +123,11 @@ export const Header: React.FC<HeaderProps> = ({
                 ? 'bg-emerald-300 hover:bg-emerald-400 text-slate-900'
                 : 'bg-[#00F0FF] hover:bg-[#66F5FF] text-black animate-pulse'
             }`}
-            title="Configure Gemini API Key"
+            title="BYOK Model: Bring Your Own Gemini Key"
           >
             <Key className="w-3.5 h-3.5 stroke-[3]" />
             <span className="hidden sm:inline">
-              {hasApiKey ? 'Gemini Key Connected' : 'Set Gemini API Key'}
+              {hasApiKey ? 'BYOK: Key Connected' : 'BYOK: Set Gemini Key'}
             </span>
           </button>
 

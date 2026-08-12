@@ -76,11 +76,12 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onKey
               <Key className="w-5 h-5 text-black stroke-[3]" />
             </div>
             <div>
-              <h2 className="text-lg font-black text-slate-900 font-heading uppercase tracking-wide">
-                Connect Gemini API
+              <h2 className="text-lg font-black text-slate-900 font-heading uppercase tracking-wide flex items-center gap-2">
+                <span>Connect Gemini API</span>
+                <span className="text-[10px] bg-black text-[#FFE600] px-1.5 py-0.5 rounded font-mono">BYOK MODEL</span>
               </h2>
               <p className="text-xs font-bold text-slate-800">
-                Link your typed prompt directly to Google Gemini
+                Bring Your Own Key for 100% private & free AI travel generation
               </p>
             </div>
           </div>
@@ -104,7 +105,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onKey
                 <CheckCircle2 className="w-5 h-5 text-emerald-600 stroke-[3]" />
                 <div>
                   <div className="text-xs font-black text-emerald-900 font-heading uppercase">
-                    Gemini API Connected
+                    BYOK Connected • Gemini API Active
                   </div>
                   <div className="text-[11px] font-bold text-emerald-700 font-mono">
                     Key: {currentKey.substring(0, 6)}••••••••••••{currentKey.slice(-4)}
@@ -125,7 +126,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onKey
             <div className="p-3.5 bg-[#00F0FF]/15 border-[2.5px] border-black rounded-2xl flex items-start gap-3 shadow-[3px_3px_0px_#000000]">
               <Sparkles className="w-5 h-5 text-slate-900 stroke-[3] shrink-0 mt-0.5" />
               <div className="text-xs text-slate-800 font-bold leading-relaxed">
-                Enter your Google Gemini API key to enable live AI trip generation. Your queries will be sent directly to the official Gemini model!
+                <strong>BYOK Architecture:</strong> Enter your Google Gemini API key to enable live AI trip generation. Your key stays 100% private in your local browser storage!
               </div>
             </div>
           )}
@@ -142,7 +143,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onKey
           <form onSubmit={handleSave} className="space-y-4">
             <div className="space-y-1.5">
               <label className="block text-xs font-black text-slate-900 uppercase font-heading tracking-wider">
-                Gemini API Key
+                Gemini API Key (BYOK)
               </label>
 
               <div className="relative">
@@ -206,7 +207,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onKey
           {/* Privacy Note */}
           <div className="pt-3 border-t-[2px] border-slate-200 flex items-center gap-2 text-[11px] font-bold text-slate-500">
             <ShieldCheck className="w-4 h-4 text-emerald-600 stroke-[2.5] shrink-0" />
-            <span>Your API key is stored locally in your browser session and never sent to external servers.</span>
+            <span>BYOK Model: Your API key is stored locally in your browser session and never sent to external servers.</span>
           </div>
 
         </div>
