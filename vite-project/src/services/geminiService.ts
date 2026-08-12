@@ -83,6 +83,42 @@ function resolveModelId(selectedModelName: string): string {
 }
 
 /**
+ * Dynamically queries Google's ListModels API for the key to discover valid models.
+ */
+async function discoverValidModelNames(apiKey: string): Promise<string[]> {
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+    if (response.ok) {
+      const data = await response.json();
+      if (Array.isArray(data.models)) {
+        const available = data.models
+          .filter((m: any) => 
+            Array.isArray(m.supportedGenerationMethods) && 
+            m.supportedGenerationMethods.includes('generateContent')
+          )
+          .map((m: any) => m.name.replace(/^models\//, ''));
+
+        if (available.length > 0) {
+          console.log('Discovered supported Gemini models for key:', available);
+          return available;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Could not auto-discover Gemini models via REST API:', err);
+  }
+
+  return [
+    'gemini-1.5-flash',
+    'gemini-1.5-flash-latest',
+    'gemini-2.0-flash-exp',
+    'gemini-2.0-flash',
+    'gemini-pro',
+    'gemini-1.5-pro'
+  ];
+}
+
+/**
  * Filters stream chunk parts using the SDK's candidate part structure,
  * returning ONLY user-facing text parts and ignoring any parts marked with thought: true.
  */
@@ -97,7 +133,6 @@ function extractUserFacingTextFromChunk(chunk: EnhancedGenerateContentResponse):
     const parts = candidate.content?.parts;
     if (parts && parts.length > 0) {
       for (const part of parts) {
-        // Skip thought parts if present in SDK part objects
         if ((part as any).thought === true) {
           continue;
         }
@@ -110,10 +145,8 @@ function extractUserFacingTextFromChunk(chunk: EnhancedGenerateContentResponse):
     }
   }
 
-  // Fallback to chunk.text() if candidate parts extraction returned empty
   if (!textParts && typeof chunk.text === 'function') {
     const raw = chunk.text();
-    // Secondary fallback cleanup if a model sends raw CoT blocks
     if (!raw.includes('Draft 1') && !raw.includes('The user is') && !raw.includes('Goal:')) {
       return raw;
     }
@@ -162,7 +195,7 @@ export function cleanResponseText(rawText: string): string {
 
 /**
  * Sends a query to the selected Gemini model with thinking disabled, token limits,
- * and SDK candidate part filtering to ensure only final responses reach the UI.
+ * dynamic model discovery, and SDK candidate part filtering.
  */
 export async function streamGeminiQuery(
   userQuery: string,
@@ -179,10 +212,23 @@ export async function streamGeminiQuery(
 
   const genAI = new GoogleGenerativeAI(apiKey);
   const primaryModelId = resolveModelId(modelName);
+  const discoveredModels = await discoverValidModelNames(apiKey);
 
-  // Fallback candidate list starting with the requested model
+  // Exact matching or prefix matching in discovered models
+  const matchedDiscovered = discoveredModels.filter((m) => m === primaryModelId || m.startsWith(primaryModelId));
+
+  // Build candidate order prioritizing requested model and discovered models
   const candidateModels = Array.from(
-    new Set([primaryModelId, 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'])
+    new Set([
+      ...matchedDiscovered,
+      primaryModelId,
+      ...discoveredModels,
+      'gemini-1.5-flash-latest',
+      'gemini-1.5-flash',
+      'gemini-2.0-flash-exp',
+      'gemini-2.0-flash',
+      'gemini-pro'
+    ])
   );
 
   const contents = [
@@ -196,17 +242,27 @@ export async function streamGeminiQuery(
 
   for (const candidateModelId of candidateModels) {
     try {
-      const model = genAI.getGenerativeModel({
-        model: candidateModelId,
-        systemInstruction: SYSTEM_INSTRUCTION,
-        generationConfig: {
-          maxOutputTokens: 2048,
-          // SDK mechanism: Disable reasoning/thinking tokens for models supporting thinkingConfig
-          thinkingConfig: {
-            thinkingBudget: 0,
+      let model;
+      try {
+        model = genAI.getGenerativeModel({
+          model: candidateModelId,
+          systemInstruction: SYSTEM_INSTRUCTION,
+          generationConfig: {
+            maxOutputTokens: 2048,
+            thinkingConfig: {
+              thinkingBudget: 0,
+            },
+          } as any,
+        });
+      } catch {
+        model = genAI.getGenerativeModel({
+          model: candidateModelId,
+          systemInstruction: SYSTEM_INSTRUCTION,
+          generationConfig: {
+            maxOutputTokens: 2048,
           },
-        } as any,
-      });
+        });
+      }
 
       const result = await model.generateContentStream({
         contents,
@@ -235,10 +291,10 @@ export async function streamGeminiQuery(
         },
       };
     } catch (error: any) {
-      console.warn(`Attempt with model ${candidateModelId} failed:`, error?.message || error);
+      console.warn(`Attempt with candidate model ${candidateModelId} failed:`, error?.message || error);
       lastError = error;
 
-      const errStr = (error?.message || '').toLowerCase();
+      const errStr = String(error?.message || error || '').toLowerCase();
 
       if (
         errStr.includes('api_key_invalid') ||
@@ -254,6 +310,7 @@ export async function streamGeminiQuery(
         errStr.includes('429') ||
         errStr.includes('not found') ||
         errStr.includes('not supported') ||
+        errStr.includes('models/') ||
         error?.status === 404 ||
         error?.status === 429
       ) {
