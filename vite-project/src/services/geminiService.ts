@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { ChatMessage, FlightItem, HotelItem, ItineraryDay, Source, DestinationComparison } from '../types';
+import { ChatMessage } from '../types';
 
 const API_KEY_STORAGE_KEY = 'travai_gemini_api_key';
 
@@ -64,7 +64,7 @@ export async function streamGeminiQuery(
 
   const genAI = new GoogleGenerativeAI(apiKey);
 
-  // Map user model selection to actual Gemini model name
+  // Map user model selection to actual Gemini model name supported by Google API
   let targetModel = 'gemini-1.5-flash';
   const lowerModel = modelName.toLowerCase();
 
@@ -73,10 +73,10 @@ export async function streamGeminiQuery(
   } else if (lowerModel.includes('2.0')) {
     targetModel = 'gemini-2.0-flash';
   } else if (lowerModel.includes('2.5') || lowerModel.includes('flash')) {
-    targetModel = 'gemini-1.5-flash'; // gemini-1.5-flash or gemini-2.5-flash fallback
+    targetModel = 'gemini-1.5-flash';
   }
 
-  const model = genAI.getGenerativeAIModel({
+  const model = genAI.getGenerativeModel({
     model: targetModel,
     systemInstruction: SYSTEM_INSTRUCTION,
   });
