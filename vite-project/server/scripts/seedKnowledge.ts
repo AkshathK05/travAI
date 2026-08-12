@@ -82,26 +82,36 @@ async function runSeed() {
 
     allChunks.push(...chunks);
     fileStats.push({ file: relPath, chunks: chunks.length });
+    console.log(`  - Loaded [${relPath}]: ${chunks.length} chunks`);
   }
 
-  console.log(`Generated ${allChunks.length} chunks across ${files.length} documents.`);
+  console.log(`\nGenerated ${allChunks.length} chunks across ${files.length} documents.`);
   console.log('Upserting chunks to Pinecone vector database...');
 
   const indexName = process.env.PINECONE_INDEX_NAME || 'travai-knowledge';
   const namespace = 'knowledge';
 
-  const totalUpserted = await upsertChunksToPinecone(allChunks, 100);
+  try {
+    const totalUpserted = await upsertChunksToPinecone(allChunks, 100);
 
-  console.log('\n==================================================');
-  console.log(' SEEDING COMPLETE RESULT');
-  console.log('==================================================');
-  console.log(`Files Processed:   ${files.length}`);
-  console.log(`Chunks Created:    ${allChunks.length}`);
-  console.log(`Records Upserted:  ${totalUpserted}`);
-  console.log(`Pinecone Index:    ${indexName}`);
-  console.log(`Pinecone Namespace:${namespace}`);
-  console.log(`Errors:            None`);
-  console.log('==================================================\n');
+    console.log('\n==================================================');
+    console.log(' SEED COMPLETED SUCCESSFULLY');
+    console.log('==================================================');
+    console.log(`Files loaded:      ${files.length}`);
+    console.log(`Chunks generated:  ${allChunks.length}`);
+    console.log(`Records upserted:  ${totalUpserted}`);
+    console.log(`Pinecone Index:    ${indexName}`);
+    console.log(`Pinecone Namespace:${namespace}`);
+    console.log(`Errors:            0`);
+    console.log('==================================================\n');
+  } catch (upsertErr: any) {
+    console.error('\n==================================================');
+    console.error(' SEEDING FAILED WITH ERROR');
+    console.error('==================================================');
+    console.error('Upsert Error:', upsertErr?.message || upsertErr);
+    console.error('==================================================\n');
+    process.exit(1);
+  }
 }
 
 runSeed().catch((err) => {

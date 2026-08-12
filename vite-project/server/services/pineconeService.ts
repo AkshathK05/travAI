@@ -89,8 +89,10 @@ export async function upsertChunksToPinecone(chunks: ChunkRecord[], batchSize = 
       lastVerified: c.lastVerified,
     }));
 
+    console.log(`Sending batch of ${records.length} records to Pinecone namespace "knowledge"...`);
     await ns.upsertRecords({ records });
     totalUpserted += records.length;
+    console.log(`Confirmed: ${totalUpserted}/${chunks.length} records successfully written to Pinecone.`);
   }
 
   return totalUpserted;
