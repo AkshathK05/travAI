@@ -4,7 +4,7 @@ import { ChatMessage } from '../types';
 const API_KEY_STORAGE_KEY = 'travai_gemini_api_key';
 
 /**
- * Client-side rate limit disabled as requested. Always allows requests.
+ * Client-side rate limit disabled. Always allows requests.
  */
 export function checkRateLimit(): { allowed: boolean; remainingSeconds?: number; reason?: string } {
   return { allowed: true };
@@ -26,15 +26,14 @@ export function removeApiKey(): void {
   localStorage.removeItem(API_KEY_STORAGE_KEY);
 }
 
-const SYSTEM_INSTRUCTION = `You are TravAI, a world-class autonomous AI Travel Concierge and Trip Planner powered by Google Gemini.
+const SYSTEM_INSTRUCTION = `You are TravAI, an intelligent, friendly, and helpful AI Travel Concierge powered by Google Gemini.
 
-Your mission:
-- Create detailed, engaging, and practical travel plans, destination comparisons, flight recommendations, and day-by-day itineraries based on user queries.
-- Format all text cleanly with GitHub Flavored Markdown (use bold text, bullet points, headers like ###, tables where helpful).
-- Always address constraints specified by the user such as budget, number of travelers, interests (e.g., food, culture, adventure, relaxation).
-- Use local currency formatting (e.g., ₹ INR, $ USD) according to user preference.
-- Provide practical travel advice, transit tips, and local insider food recommendations.
-- End your response with 3 to 4 short follow-up suggestions for the user starting with bullet point list under "**Follow-up suggestions:**".`;
+Behavior Rules:
+1. Match the tone and scope of the user's input:
+   - For simple greetings or casual chat (e.g. "Hello", "Hi", "Hey", "How are you?", "Who are you?"), respond warmly, naturally, and concisely in 1-2 sentences. Do NOT output giant trip plans, itineraries, or flight recommendations for simple greetings.
+   - For travel queries, trip planning, or destination comparisons, provide comprehensive, structured travel advice using GitHub Flavored Markdown (headers ###, bold text, bullet points).
+2. Use currency requested by the user or local currency by default.
+3. For detailed travel plans or itineraries, end your response with 3 to 4 short follow-up suggestions under a header titled "**Follow-up suggestions:**".`;
 
 export interface StreamResponseResult {
   stream: AsyncGenerator<string, void, unknown>;
@@ -118,7 +117,6 @@ export async function streamGeminiQuery(
 
   for (const candidateModel of validModels) {
     try {
-      // Configure model with system instruction safely formatted
       const model = genAI.getGenerativeModel({
         model: candidateModel,
         systemInstruction: {
@@ -157,7 +155,6 @@ export async function streamGeminiQuery(
 
       const errStr = (error?.message || '').toLowerCase();
 
-      // Only throw INVALID_API_KEY if error explicitly mentions invalid API key
       if (
         errStr.includes('api_key_invalid') ||
         errStr.includes('api key not valid') ||
@@ -167,7 +164,6 @@ export async function streamGeminiQuery(
         throw new Error('INVALID_API_KEY');
       }
 
-      // Continue trying other candidate models if 404, 429, or payload issue
       if (
         errStr.includes('404') ||
         errStr.includes('429') ||
@@ -187,20 +183,30 @@ export async function streamGeminiQuery(
 }
 
 export function extractFollowUpSuggestions(text: string): string[] {
-  const defaultSuggestions = [
-    '⚡ Make this itinerary cheaper',
-    '🏨 Recommend top boutique hotels',
-    '✈️ Find cheapest flight routes',
-    '🗺️ Add 2 extra days for exploration'
-  ];
+  const lower = text.toLowerCase();
+  
+  // If response is a short greeting or non-travel chat, don't force travel follow-up chips
+  if (text.length < 150 && !lower.includes('trip') && !lower.includes('itinerary') && !lower.includes('flight') && !lower.includes('hotel')) {
+    return [];
+  }
 
   const followUpMatch = text.match(/\*\*Follow-up suggestions:\*\*([\s\S]*?)$/i);
-  if (!followUpMatch) return defaultSuggestions;
+  if (!followUpMatch) {
+    if (lower.includes('day 1') || lower.includes('itinerary') || lower.includes('budget') || lower.includes('flight') || lower.includes('hotel')) {
+      return [
+        '⚡ Make this itinerary cheaper',
+        '🏨 Recommend top boutique hotels',
+        '✈️ Find cheapest flight routes',
+        '🗺️ Add 2 extra days for exploration'
+      ];
+    }
+    return [];
+  }
 
   const lines = followUpMatch[1]
     .split('\n')
     .map((l) => l.replace(/^[\s*-]+/, '').trim())
     .filter((l) => l.length > 3 && l.length < 100);
 
-  return lines.length > 0 ? lines.slice(0, 4) : defaultSuggestions;
+  return lines.length > 0 ? lines.slice(0, 4) : [];
 }
