@@ -47,7 +47,30 @@ export interface StreamResponseResult {
 }
 
 /**
+ * Candidate models to try in order if one returns 404 model not found.
+ */
+const GET_CANDIDATE_MODELS = (modelName: string): string[] => {
+  const lower = modelName.toLowerCase();
+  
+  if (lower.includes('pro')) {
+    return ['gemini-1.5-pro-latest', 'gemini-1.5-pro', 'gemini-2.0-flash-exp', 'gemini-1.5-flash-latest'];
+  }
+  if (lower.includes('2.0')) {
+    return ['gemini-2.0-flash', 'gemini-2.0-flash-exp', 'gemini-1.5-flash-latest', 'gemini-1.5-flash'];
+  }
+  // Default flash fallback chain
+  return [
+    'gemini-1.5-flash-latest',
+    'gemini-2.0-flash',
+    'gemini-1.5-flash',
+    'gemini-2.5-flash',
+    'gemini-1.5-pro-latest'
+  ];
+};
+
+/**
  * Sends a query to the Gemini model and yields chunks as they stream.
+ * Automatically tries fallback model names if 404 is encountered.
  */
 export async function streamGeminiQuery(
   userQuery: string,
@@ -63,23 +86,7 @@ export async function streamGeminiQuery(
   }
 
   const genAI = new GoogleGenerativeAI(apiKey);
-
-  // Map user model selection to actual Gemini model name supported by Google API
-  let targetModel = 'gemini-1.5-flash';
-  const lowerModel = modelName.toLowerCase();
-
-  if (lowerModel.includes('pro') || lowerModel.includes('1.5-pro')) {
-    targetModel = 'gemini-1.5-pro';
-  } else if (lowerModel.includes('2.0')) {
-    targetModel = 'gemini-2.0-flash';
-  } else if (lowerModel.includes('2.5') || lowerModel.includes('flash')) {
-    targetModel = 'gemini-1.5-flash';
-  }
-
-  const model = genAI.getGenerativeModel({
-    model: targetModel,
-    systemInstruction: SYSTEM_INSTRUCTION,
-  });
+  const candidates = GET_CANDIDATE_MODELS(modelName);
 
   // Prepare message history for Gemini chat format
   const formattedHistory = chatHistory
@@ -100,38 +107,69 @@ export async function streamGeminiQuery(
     parts: [{ text: promptWithMeta }],
   });
 
-  let fullResponseText = '';
+  let lastError: any = null;
 
-  try {
-    const result = await model.generateContentStream({
-      contents: formattedHistory,
-    });
+  // Try candidate models in order until one succeeds
+  for (const candidateModel of candidates) {
+    try {
+      const model = genAI.getGenerativeModel({
+        model: candidateModel,
+        systemInstruction: SYSTEM_INSTRUCTION,
+      });
 
-    async function* generateStreamChunks() {
-      for await (const chunk of result.stream) {
-        const text = chunk.text();
-        fullResponseText += text;
-        yield text;
-      }
-    }
+      const result = await model.generateContentStream({
+        contents: formattedHistory,
+      });
 
-    return {
-      stream: generateStreamChunks(),
-      getFullText: async () => {
-        if (!fullResponseText) {
-          const response = await result.response;
-          fullResponseText = response.text();
+      let fullResponseText = '';
+
+      async function* generateStreamChunks() {
+        for await (const chunk of result.stream) {
+          const text = chunk.text();
+          fullResponseText += text;
+          yield text;
         }
-        return fullResponseText;
-      },
-    };
-  } catch (error: any) {
-    console.error('Gemini Stream Error:', error);
-    if (error?.message?.includes('API_KEY_INVALID') || error?.status === 400 || error?.status === 403) {
-      throw new Error('INVALID_API_KEY');
+      }
+
+      return {
+        stream: generateStreamChunks(),
+        getFullText: async () => {
+          if (!fullResponseText) {
+            const response = await result.response;
+            fullResponseText = response.text();
+          }
+          return fullResponseText;
+        },
+      };
+    } catch (error: any) {
+      console.warn(`Model candidate ${candidateModel} failed:`, error?.message || error);
+      lastError = error;
+
+      // If it's an API Key invalid error, stop fallback immediately
+      if (
+        error?.message?.includes('API_KEY_INVALID') ||
+        error?.status === 400 ||
+        error?.status === 403 ||
+        error?.message?.includes('API key not valid')
+      ) {
+        throw new Error('INVALID_API_KEY');
+      }
+
+      // If it's a 404 model not found, continue to next candidate
+      if (error?.message?.includes('404') || error?.status === 404 || error?.message?.includes('not found')) {
+        continue;
+      }
+
+      // For other errors, throw immediately
+      throw error;
     }
-    throw error;
   }
+
+  // If all candidates failed
+  if (lastError?.message?.includes('404')) {
+    throw new Error('MODEL_NOT_FOUND');
+  }
+  throw lastError;
 }
 
 /**
