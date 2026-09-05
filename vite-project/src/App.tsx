@@ -118,6 +118,7 @@ export default function App() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const chatBottomRef = useRef<HTMLDivElement>(null);
+  const isGeneratingRef = useRef(false);
 
   const scrollToBottom = () => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -131,7 +132,9 @@ export default function App() {
     text: string,
     metadata?: { budget?: string; travelers?: string; currency?: string }
   ) => {
-    if (isGenerating) return;
+    // Immediate synchronous lock to prevent double-firing and phantom duplicate requests
+    if (isGeneratingRef.current) return;
+    if (!text || !text.trim()) return;
 
     const currentApiKey = getStoredApiKey();
 
@@ -141,6 +144,9 @@ export default function App() {
       return;
     }
 
+    isGeneratingRef.current = true;
+    setIsGenerating(true);
+
     const userMsgId = `user-${Date.now()}`;
     const assistantMsgId = `ai-${Date.now()}`;
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -148,7 +154,7 @@ export default function App() {
     const newUserMsg: ChatMessage = {
       id: userMsgId,
       role: 'user',
-      content: text,
+      content: text.trim(),
       timestamp
     };
 
@@ -161,7 +167,6 @@ export default function App() {
     };
 
     setMessages((prev) => [...prev, newUserMsg, newAiMsg]);
-    setIsGenerating(true);
 
     // Direct Gemini API Stream Call with Multi-API Grounding
     try {
@@ -299,11 +304,14 @@ export default function App() {
         setIsApiKeyModalOpen(true);
       }
     } finally {
+      isGeneratingRef.current = false;
       setIsGenerating(false);
     }
   };
 
   const handleNewChat = () => {
+    isGeneratingRef.current = false;
+    setIsGenerating(false);
     // Preserve current session in history before resetting view
     if (messages.length > 0) {
       const firstUserMsg = messages.find((m) => m.role === 'user');

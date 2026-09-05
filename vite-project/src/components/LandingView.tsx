@@ -78,8 +78,15 @@ export const LandingView: React.FC<LandingViewProps> = ({ onSend, disabled, curr
             <button
               key={idx}
               type="button"
-              onClick={() => onSend(p.text)}
-              className="group text-left p-4 rounded-2xl bg-white hover:bg-slate-50 border-[3px] border-black shadow-[4px_4px_0px_#000000] hover:shadow-[6px_6px_0px_#000000] hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col justify-between gap-3 relative overflow-hidden"
+              disabled={disabled}
+              onClick={() => {
+                if (!disabled) onSend(p.text);
+              }}
+              className={`group text-left p-4 rounded-2xl bg-white border-[3px] border-black shadow-[4px_4px_0px_#000000] transition-all flex flex-col justify-between gap-3 relative overflow-hidden ${
+                disabled
+                  ? 'opacity-60 cursor-not-allowed'
+                  : 'hover:bg-slate-50 hover:shadow-[6px_6px_0px_#000000] hover:-translate-x-0.5 hover:-translate-y-0.5 cursor-pointer'
+              }`}
             >
               <div>
                 <div className="flex items-center justify-between gap-2 mb-1.5">

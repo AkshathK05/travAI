@@ -39,6 +39,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const [showBudgetMenu, setShowBudgetMenu] = useState(false);
   const [showTravelersMenu, setShowTravelersMenu] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const isSubmittingRef = useRef(false);
 
   useEffect(() => {
     const opts = getBudgetOptionsForCurrency(currency);
@@ -55,26 +56,46 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   }, [input]);
 
   const handleSubmit = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!input.trim() || disabled) return;
-    onSend(input.trim(), { budget, travelers, currency });
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (isSubmittingRef.current || disabled || !input.trim()) return;
+
+    isSubmittingRef.current = true;
+    const textToSend = input.trim();
     setInput('');
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
+    }
+
+    try {
+      onSend(textToSend, { budget, travelers, currency });
+    } finally {
+      setTimeout(() => {
+        isSubmittingRef.current = false;
+      }, 400);
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit();
+      e.preventDefault(); // CRITICAL: Stop default form submission and newline
+      e.stopPropagation();
+      if (e.nativeEvent.isComposing) return;
+      if (!isSubmittingRef.current && !disabled && input.trim()) {
+        handleSubmit();
+      }
     }
   };
 
   const travelerOptions = ['Solo Traveler', '2 Adults (Couple)', 'Family (3-4)', 'Group (5+)'];
 
   return (
-    <div className={`w-full relative ${isLanding ? 'max-w-2xl mx-auto' : 'max-w-3xl mx-auto'}`}>
+    <form
+      onSubmit={handleSubmit}
+      className={`w-full relative ${isLanding ? 'max-w-2xl mx-auto' : 'max-w-3xl mx-auto'}`}
+    >
       
       {/* Neo-Brutalist Input Container */}
       <div className={`relative bg-white border-[3px] border-black transition-all ${
@@ -183,8 +204,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
           {/* Send Button */}
           <button
-            type="button"
-            onClick={() => handleSubmit()}
+            type="submit"
             disabled={!input.trim() || disabled}
             className={`p-2 rounded-xl flex items-center justify-center transition-all border-[2.5px] border-black ${
               input.trim() && !disabled
@@ -199,7 +219,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         </div>
 
       </div>
-    </div>
+    </form>
   );
 };
 
