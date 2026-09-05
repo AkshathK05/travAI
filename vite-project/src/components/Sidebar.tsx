@@ -57,7 +57,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <img 
                 src="/travai-logo.png" 
                 alt="travAI Logo" 
-                className="w-7 h-7 object-contain border-2 border-black rounded shadow-[1.5px_1.5px_0px_0px_rgba(0,0,0,1)] bg-yellow-400 p-0.5" 
+                className="h-8 w-auto object-contain rounded border-2 border-black shadow-[1.5px_1.5px_0px_0px_rgba(0,0,0,1)] bg-white px-1 py-0.5" 
               />
               <span className="text-sm font-black text-slate-900 font-heading uppercase tracking-wide">Conversations</span>
             </div>
