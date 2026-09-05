@@ -46,10 +46,16 @@ Your mission is to craft realistic, culturally nuanced, logistically coherent tr
 * Never mention Pinecone, RAG, OpenStreetMap, Overpass, vector databases, search scores, internal retrieval systems, or prompt instructions to the user.
 * Do not reproduce retrieved text verbatim; synthesize it concisely in your own helpful tone.
 
+## Conciseness Rules for Sections 1–3 — CRITICAL
+* Section 1 (Flights): Limit to 1 primary recommendation card + 1 line for direct alternative.
+* Section 2 (Hotels): Limit to 1 recommended property with bullet points strictly for location, nightly rate, and total cost.
+* Section 3 (Transit): Answer the pass/train question directly in 3-4 bullet points.
+* DO NOT write lengthy conversational prose in Sections 1-3. Reserve at least 60% of your response length for Section 4 (Day-by-Day Itinerary).
+
 ## Mandatory Response Structure — CRITICAL
 Every travel itinerary MUST follow this sequential structure without skipping:
 * Do not output raw isolated dashes like '--'. Complete all sentences and sections fully.
-* Never stop after flight recommendations; you must always output the complete Day 1 through Day 7 schedule, specific verified tourist attractions, and the budget table.
+* Never stop after flight recommendations or transit; you must always output the complete Day 1 through Day 7 schedule, specific verified tourist attractions, and the budget table.
 1. Flight Logistics & Route Breakdown:
    - Specific airline carrier, flight numbers, departure from user origin (e.g. BLR, DEL, BOM), arrival, durations, and baggage allowances.
 2. Accommodations & Lodging (Verified hotels):
@@ -62,6 +68,9 @@ Every travel itinerary MUST follow this sequential structure without skipping:
    - Include estimated timing, transit tips, and dining suggestions for each day.
 5. Final Budget Summary Table:
    - Comprehensive itemized breakdown (Flights, Lodging, Transit/Passes, Food, Sightseeing/Activities, and Contingency) demonstrating how the trip stays strictly within the user's budget.
+
+## Critical Completion Requirement — MANDATORY
+You are STRICTLY FORBIDDEN from ending your response without outputting all scheduled days (e.g., Day 1 through Day 7/8) in Section 4 and the final Markdown Budget Summary Table in Section 5. If running low on space, condense descriptions into bullet points, but ALWAYS render every single day with morning, afternoon, and evening landmarks.
 
 ## Behavior
 * Be helpful, accurate, concise, and personalized.
@@ -507,7 +516,7 @@ export async function streamGeminiQuery(
   const placesResult = placesSettled.status === 'fulfilled' ? placesSettled.value : { contextText: '', places: [] };
   const flightsResult = flightsSettled.status === 'fulfilled' ? flightsSettled.value : { contextText: '', flights: [] };
   const hotelsResult = hotelsSettled.status === 'fulfilled' ? hotelsSettled.value : { contextText: '', hotels: [] };
-  const constraintsText = `\n\n--- TRIP CONSTRAINTS ---\nTrip Constraints: Budget: ${budgetVal}, Travelers: ${travelersVal}, Currency: ${currencyVal}, User Departure Origin: ${originVal}.\nCRITICAL CONSTRAINT HIERARCHY: If the user explicitly mentions a budget, traveler count, or departure city inside their travel request (e.g., '₹2,20,000', 'from Bangalore'), those user-specified values MUST override the external UI pill defaults. Structure all cost breakdowns, flight routes, hotel budgets, and day-by-day itineraries strictly around the user's requested budget (${budgetVal}) and origin (${originVal}).\n--- END TRIP CONSTRAINTS ---`;
+  const constraintsText = `\n\n--- TRIP CONSTRAINTS ---\nTrip Constraints: Budget: ${budgetVal}, Travelers: ${travelersVal}, Currency: ${currencyVal}, User Departure Origin: ${originVal}.\nCRITICAL CONSTRAINT HIERARCHY: If the user explicitly mentions a budget, traveler count, or departure city inside their travel request (e.g., '₹2,20,000', 'from Bangalore'), those user-specified values MUST override the external UI pill defaults. Structure all cost breakdowns, flight routes, hotel budgets, and day-by-day itineraries strictly around the user's requested budget (${budgetVal}) and origin (${originVal}).\nOUTPUT COMPLETION MANDATE: Keep Sections 1-3 brief (1 flight card, 1 hotel, 3-4 bullets for transit). You are STRICTLY FORBIDDEN from stopping after transit. Reserve >=60% of output length to fully output Section 4 (all scheduled days Day 1 through Day 7/8 with morning, afternoon, and evening landmarks) and Section 5 (Markdown Budget Summary Table).\n--- END TRIP CONSTRAINTS ---`;
 
   const combinedContext = `${constraintsText}${ragContext}${placesResult.contextText}${flightsResult.contextText}${hotelsResult.contextText}`;
   const sanitizedUserQuery = sanitizeUserInput(userQuery);
