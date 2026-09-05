@@ -135,23 +135,43 @@ async function discoverValidModelNames(apiKey: string): Promise<string[]> {
 }
 
 /**
- * Filters stream chunk parts using candidate part structure,
- * returning ONLY user-facing text parts and ignoring any parts marked with thought: true.
+ * Strips raw internal reasoning, scratchpad thoughts, and <thought> tags from model output.
  */
-function extractUserFacingTextFromChunk(chunk: EnhancedGenerateContentResponse): string {
+export function stripThinkingTraces(text: string, options: { trim?: boolean } = { trim: true }): string {
+  if (!text) return '';
+  let cleaned = text;
+
+  // Strips explicit <thought>...</thought> or <think>...</think> tags if present
+  cleaned = cleaned.replace(/<thought>[\s\S]*?<\/thought>/gi, '');
+  cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>/gi, '');
+
+  // Strip thinking blocks if unclosed during streaming
+  cleaned = cleaned.replace(/<(?:thought|think)>[\s\S]*$/gi, '');
+
+  // If the model prints self-correction / thought logs starting with "* User says:" before the actual response
+  cleaned = cleaned.replace(
+    /^(?:(?:\*|\-)?\s*(?:User says|The user is|The user wants|Trip Constraints|Self-correction|Considerations|Thinking Process|Draft \d+|Goal):[^\n]*\n*)+/gi,
+    ''
+  );
+
+  return options.trim ? cleaned.trim() : cleaned;
+}
+
+/**
+ * Filters stream chunk parts using candidate part structure,
+ * returning ONLY user-facing text parts and strictly ignoring any parts marked with thought: true.
+ */
+export function extractUserFacingTextFromChunk(chunk: EnhancedGenerateContentResponse | any): string {
+  if (!chunk) return '';
   const candidates = chunk.candidates;
-  if (!candidates || candidates.length === 0) {
-    try {
-      return chunk.text ? chunk.text() : '';
-    } catch {
-      return '';
-    }
+  if (!candidates || !Array.isArray(candidates) || candidates.length === 0) {
+    return '';
   }
 
   let textParts = '';
   for (const candidate of candidates) {
     const parts = candidate.content?.parts;
-    if (parts && parts.length > 0) {
+    if (parts && Array.isArray(parts) && parts.length > 0) {
       for (const part of parts) {
         if ((part as any).thought === true) {
           continue;
@@ -160,19 +180,8 @@ function extractUserFacingTextFromChunk(chunk: EnhancedGenerateContentResponse):
           textParts += part.text;
         }
       }
-    } else if ((candidate as any).output) {
-      textParts += (candidate as any).output;
-    }
-  }
-
-  if (!textParts && typeof chunk.text === 'function') {
-    try {
-      const raw = chunk.text();
-      if (!raw.includes('Draft 1') && !raw.includes('The user is') && !raw.includes('Goal:')) {
-        return raw;
-      }
-    } catch {
-      // chunk.text() quick accessor can throw if candidate was filtered or empty
+    } else if (candidate.output && !(candidate as any).thought) {
+      textParts += candidate.output;
     }
   }
 
@@ -181,37 +190,7 @@ function extractUserFacingTextFromChunk(chunk: EnhancedGenerateContentResponse):
 
 export function cleanResponseText(rawText: string): string {
   if (!rawText) return '';
-
-  if (
-    rawText.includes('The user said') ||
-    rawText.includes('The user is') ||
-    rawText.includes('Draft 1') ||
-    rawText.includes('Draft 2') ||
-    rawText.includes('Goal:')
-  ) {
-    const quotes = rawText.match(/"([^"]{3,300})"/g);
-    if (quotes && quotes.length > 0) {
-      const lastQuote = quotes[quotes.length - 1].replace(/^"/, '').replace(/"$/, '').trim();
-      if (lastQuote.length > 2) return lastQuote;
-    }
-
-    const lines = rawText
-      .split('\n')
-      .map((l) => l.trim())
-      .filter(
-        (l) =>
-          l.length > 0 &&
-          !l.toLowerCase().startsWith('draft') &&
-          !l.toLowerCase().startsWith('goal:') &&
-          !l.toLowerCase().startsWith('the user')
-      );
-
-    if (lines.length > 0) {
-      return lines[lines.length - 1].replace(/^"/, '').replace(/"$/, '').trim();
-    }
-  }
-
-  return rawText;
+  return stripThinkingTraces(rawText, { trim: true });
 }
 
 interface RAGSearchHit {
@@ -464,15 +443,31 @@ export async function streamGeminiQuery(
 
   for (const candidateModelId of candidateModels) {
     try {
-      const model = genAI.getGenerativeModel({
-        model: candidateModelId,
-        systemInstruction: SYSTEM_INSTRUCTION,
-        generationConfig: {
-          temperature: 0.7,
-          topP: 0.95,
-          maxOutputTokens: 3072,
-        },
-      });
+      let model: any;
+      try {
+        model = genAI.getGenerativeModel({
+          model: candidateModelId,
+          systemInstruction: SYSTEM_INSTRUCTION,
+          generationConfig: {
+            temperature: 0.7,
+            topP: 0.95,
+            maxOutputTokens: 3072,
+            thinkingConfig: {
+              thinkingBudget: 0,
+            },
+          } as any,
+        });
+      } catch {
+        model = genAI.getGenerativeModel({
+          model: candidateModelId,
+          systemInstruction: SYSTEM_INSTRUCTION,
+          generationConfig: {
+            temperature: 0.7,
+            topP: 0.95,
+            maxOutputTokens: 3072,
+          },
+        });
+      }
 
       let result: any;
       try {
@@ -484,12 +479,23 @@ export async function streamGeminiQuery(
         // Seamless fallback to non-streaming generateContent on the same model
         try {
           const nonStreamRes = await model.generateContent({ contents });
-          const text = extractUserFacingTextFromChunk(nonStreamRes.response);
+          let filteredText = '';
+          const candidateParts = nonStreamRes?.response?.candidates?.[0]?.content?.parts;
+          if (Array.isArray(candidateParts)) {
+            filteredText = candidateParts
+              .filter((part: any) => !(part as any)?.thought)
+              .map((part: any) => part?.text || '')
+              .join('');
+          } else {
+            filteredText = extractUserFacingTextFromChunk(nonStreamRes.response);
+          }
+          filteredText = stripThinkingTraces(filteredText);
+
           return {
             stream: (async function* () {
-              if (text) yield text;
+              if (filteredText) yield filteredText;
             })(),
-            getFullText: async () => cleanResponseText(text),
+            getFullText: async () => cleanResponseText(filteredText),
             flights: flightsResult.flights,
             hotels: hotelsResult.hotels,
             places: placesResult.places,
@@ -502,16 +508,68 @@ export async function streamGeminiQuery(
       let fullResponseText = '';
 
       async function* generateStreamChunks() {
+        let preambleHandled = false;
+        let preambleBuffer = '';
+        const PREAMBLE_TRIGGER_REGEX = /^(?:<(?:thought|think)>|(?:\*|\-)?\s*(?:User says|The user is|The user wants|Trip Constraints|Self-correction|Considerations|Thinking Process|Draft \d+|Goal):)/i;
+
         try {
           for await (const chunk of result.stream) {
             try {
-              const text = extractUserFacingTextFromChunk(chunk);
-              if (text) {
-                fullResponseText += text;
-                yield text;
+              let chunkText = '';
+              const candidate = (chunk as any)?.candidates?.[0];
+              const parts = candidate?.content?.parts;
+              if (Array.isArray(parts) && parts.length > 0) {
+                for (const part of parts) {
+                  if ((part as any)?.thought === true) {
+                    continue;
+                  }
+                  if (typeof part?.text === 'string') {
+                    chunkText += part.text;
+                  }
+                }
+              } else {
+                chunkText = extractUserFacingTextFromChunk(chunk);
+              }
+
+              if (!chunkText) continue;
+
+              if (!preambleHandled) {
+                preambleBuffer += chunkText;
+                const trimmedStart = preambleBuffer.trimStart();
+
+                if (!PREAMBLE_TRIGGER_REGEX.test(trimmedStart)) {
+                  preambleHandled = true;
+                  fullResponseText += preambleBuffer;
+                  yield preambleBuffer;
+                  preambleBuffer = '';
+                } else if (
+                  preambleBuffer.includes('</thought>') ||
+                  preambleBuffer.includes('</think>') ||
+                  preambleBuffer.includes('\n\n') ||
+                  preambleBuffer.length > 600
+                ) {
+                  const cleanedPreamble = stripThinkingTraces(preambleBuffer, { trim: false }).trimStart();
+                  preambleHandled = true;
+                  preambleBuffer = '';
+                  if (cleanedPreamble) {
+                    fullResponseText += cleanedPreamble;
+                    yield cleanedPreamble;
+                  }
+                }
+              } else {
+                fullResponseText += chunkText;
+                yield chunkText;
               }
             } catch (chunkErr) {
               console.warn('Skipping malformed chunk in stream:', chunkErr);
+            }
+          }
+
+          if (!preambleHandled && preambleBuffer) {
+            const cleaned = stripThinkingTraces(preambleBuffer, { trim: false }).trimStart();
+            if (cleaned) {
+              fullResponseText += cleaned;
+              yield cleaned;
             }
           }
         } catch (streamErr: any) {
@@ -521,7 +579,18 @@ export async function streamGeminiQuery(
             try {
               console.info(`Falling back to non-streaming generateContent on ${candidateModelId}...`);
               const nonStreamRes = await model.generateContent({ contents });
-              const fallbackText = extractUserFacingTextFromChunk(nonStreamRes.response);
+              let fallbackText = '';
+              const candidateParts = nonStreamRes?.response?.candidates?.[0]?.content?.parts;
+              if (Array.isArray(candidateParts)) {
+                fallbackText = candidateParts
+                  .filter((part: any) => !(part as any)?.thought)
+                  .map((part: any) => part?.text || '')
+                  .join('');
+              } else {
+                fallbackText = extractUserFacingTextFromChunk(nonStreamRes.response);
+              }
+              fallbackText = stripThinkingTraces(fallbackText);
+
               if (fallbackText) {
                 const remaining = fallbackText.startsWith(fullResponseText)
                   ? fallbackText.slice(fullResponseText.length)
@@ -546,7 +615,15 @@ export async function streamGeminiQuery(
           if (!fullResponseText) {
             try {
               const response = await result.response;
-              fullResponseText = extractUserFacingTextFromChunk(response);
+              const candidateParts = (response as any)?.candidates?.[0]?.content?.parts;
+              if (Array.isArray(candidateParts)) {
+                fullResponseText = candidateParts
+                  .filter((part: any) => !(part as any)?.thought)
+                  .map((part: any) => part?.text || '')
+                  .join('');
+              } else {
+                fullResponseText = extractUserFacingTextFromChunk(response);
+              }
             } catch {
               // Handled by generateStreamChunks
             }

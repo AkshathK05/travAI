@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Source } from "../types";
+import { stripThinkingTraces } from "../services/geminiService";
 
 const WORD_MS = 30;
 
@@ -47,8 +48,11 @@ function parseInlineMarkdown(text: string): React.ReactNode[] {
 function renderFormattedMarkdown(rawText: string) {
   if (!rawText) return null;
 
+  const sanitized = stripThinkingTraces(rawText, { trim: false });
+  if (!sanitized) return null;
+
   // Pre-process text: normalize inline numbers like " 2. " or " 3. " onto newlines
-  const normalized = rawText
+  const normalized = sanitized
     .replace(/\s+(\d+\.\s+\*\*)/g, '\n$1')
     .replace(/\s+(\d+\.\s+[A-Z])/g, '\n$1');
 
@@ -130,7 +134,8 @@ export const StreamingText: React.FC<StreamingTextProps> = ({
   followUps,
   onFollowUpSelect,
 }) => {
-  const words = content.split(" ");
+  const cleanContent = stripThinkingTraces(content, { trim: false });
+  const words = cleanContent.split(" ");
   const [count, setCount] = useState(isStreaming ? 0 : words.length);
   const done = count >= words.length;
 
@@ -147,7 +152,7 @@ export const StreamingText: React.FC<StreamingTextProps> = ({
     return () => clearTimeout(t);
   }, [count, isStreaming, words.length]);
 
-  const currentText = isStreaming ? words.slice(0, count).join(" ") : content;
+  const currentText = isStreaming ? words.slice(0, count).join(" ") : cleanContent;
 
   return (
     <div className="w-full space-y-3">
