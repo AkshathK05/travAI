@@ -1,25 +1,51 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowUp, Paperclip, DollarSign, Users, Check } from 'lucide-react';
+import { ArrowUp, Paperclip, Wallet, Users, Check } from 'lucide-react';
 
 interface ChatInputProps {
-  onSend: (text: string, metadata?: { budget?: string; travelers?: string }) => void;
+  onSend: (text: string, metadata?: { budget?: string; travelers?: string; currency?: string }) => void;
   disabled?: boolean;
   isLanding?: boolean;
   initialValue?: string;
+  currency?: string;
 }
 
 export const ChatInput: React.FC<ChatInputProps> = ({
   onSend,
   disabled = false,
   isLanding = false,
-  initialValue = ''
+  initialValue = '',
+  currency = '₹ INR'
 }) => {
+  const getBudgetOptionsForCurrency = (curr: string) => {
+    if (curr.includes('USD') || curr.includes('$')) {
+      return ['Under $500', '$1,000', '$2,000', '$3,500+', 'Flexible'];
+    }
+    if (curr.includes('EUR') || curr.includes('€')) {
+      return ['Under €500', '€1,000', '€2,000', '€3,500+', 'Flexible'];
+    }
+    if (curr.includes('GBP') || curr.includes('£')) {
+      return ['Under £400', '£800', '£1,500', '£3,000+', 'Flexible'];
+    }
+    if (curr.includes('JPY') || curr.includes('¥')) {
+      return ['Under ¥80,000', '¥150,000', '¥250,000', '¥400,000+', 'Flexible'];
+    }
+    return ['Under ₹50,000', '₹1 Lakh', '₹1.5 Lakh', '₹2.5 Lakh+', 'Flexible'];
+  };
+
+  const budgetOptions = getBudgetOptionsForCurrency(currency);
   const [input, setInput] = useState(initialValue);
-  const [budget, setBudget] = useState('₹1.5 Lakh');
+  const [budget, setBudget] = useState(budgetOptions[2] || '₹1.5 Lakh');
   const [travelers, setTravelers] = useState('2 Adults');
   const [showBudgetMenu, setShowBudgetMenu] = useState(false);
   const [showTravelersMenu, setShowTravelersMenu] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const opts = getBudgetOptionsForCurrency(currency);
+    if (!opts.includes(budget) && budget !== 'Flexible') {
+      setBudget(opts[2] || opts[0]);
+    }
+  }, [currency]);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -31,7 +57,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!input.trim() || disabled) return;
-    onSend(input.trim(), { budget, travelers });
+    onSend(input.trim(), { budget, travelers, currency });
     setInput('');
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -45,7 +71,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }
   };
 
-  const budgetOptions = ['Under ₹50,000', '₹1 Lakh', '₹1.5 Lakh', '₹2.5 Lakh+', 'Flexible'];
   const travelerOptions = ['Solo Traveler', '2 Adults (Couple)', 'Family (3-4)', 'Group (5+)'];
 
   return (
@@ -95,7 +120,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 }}
                 className="flex items-center gap-1 text-xs font-black px-2.5 py-1 rounded-lg bg-[#FFE600] text-black border-[2px] border-black shadow-[2px_2px_0px_#000000] hover:bg-[#FFF066] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer font-heading uppercase"
               >
-                <DollarSign className="w-3.5 h-3.5 stroke-[3]" />
+                <Wallet className="w-3.5 h-3.5 stroke-[3]" />
                 <span>{budget}</span>
               </button>
 

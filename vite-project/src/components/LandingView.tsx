@@ -3,11 +3,12 @@ import { ArrowRight, Sparkles, Compass, Key, ShieldCheck } from 'lucide-react';
 import { ChatInput } from './ChatInput';
 
 interface LandingViewProps {
-  onSend: (text: string, metadata?: { budget?: string; travelers?: string }) => void;
+  onSend: (text: string, metadata?: { budget?: string; travelers?: string; currency?: string }) => void;
   disabled?: boolean;
+  currency?: string;
 }
 
-export const LandingView: React.FC<LandingViewProps> = ({ onSend, disabled }) => {
+export const LandingView: React.FC<LandingViewProps> = ({ onSend, disabled, currency = '₹ INR' }) => {
   const samplePrompts = [
     {
       title: 'Japan Food & Culture',
@@ -54,7 +55,7 @@ export const LandingView: React.FC<LandingViewProps> = ({ onSend, disabled }) =>
 
       {/* Centered Chat Composer */}
       <div className="w-full mb-8">
-        <ChatInput onSend={onSend} disabled={disabled} isLanding={true} />
+        <ChatInput onSend={onSend} disabled={disabled} isLanding={true} currency={currency} />
 
         {/* BYOK Architecture Notice */}
         <div className="mt-3 p-3 bg-white border-[2.5px] border-black rounded-xl text-xs font-extrabold text-slate-800 flex items-center justify-between shadow-[3px_3px_0px_#000000]">
