@@ -141,13 +141,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
               })}
 
               {filteredSessions.length === 0 && (
-                <div className="text-center p-4 bg-white border-[2px] border-black rounded-xl text-xs font-bold text-slate-500 shadow-[2px_2px_0px_#000]">
-                  No matching trip plans found
+                <div className="p-4 border-2 border-dashed border-black rounded-lg text-center text-xs font-bold text-gray-500 uppercase">
+                  No Saved Trips Yet
                 </div>
               )}
             </div>
 
-            {onClearAllSessions && (
+            {onClearAllSessions && sessions.length > 0 && (
               <button
                 type="button"
                 onClick={() => {

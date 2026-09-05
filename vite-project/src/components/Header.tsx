@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, PanelLeft, ChevronDown, Check, Compass, User, Key, Sparkles, LogOut } from 'lucide-react';
+import { Plus, PanelLeft, ChevronDown, Check, Compass, User, Key, Sparkles, LogOut, Share2, Printer } from 'lucide-react';
 
 interface HeaderProps {
   onToggleSidebar: () => void;
@@ -12,6 +12,8 @@ interface HeaderProps {
   user?: any;
   onSignIn?: () => void;
   onSignOut?: () => void;
+  onShareTrip?: () => void;
+  onExportPDF?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -25,6 +27,8 @@ export const Header: React.FC<HeaderProps> = ({
   user,
   onSignIn,
   onSignOut,
+  onShareTrip,
+  onExportPDF,
 }) => {
   const [showModelMenu, setShowModelMenu] = useState(false);
 
@@ -35,7 +39,7 @@ export const Header: React.FC<HeaderProps> = ({
   ];
 
   return (
-    <header className="sticky top-0 z-40 w-full bg-white border-b-[3px] border-black px-4 py-3 shadow-[0_3px_0px_#000000]">
+    <header className="sticky top-0 z-40 w-full bg-white border-b-[3px] border-black px-4 py-3 shadow-[0_3px_0px_#000000] no-print">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
         
         {/* Left: Sidebar Toggle & Product Brand */}
@@ -138,14 +142,36 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
 
           {!isLanding && (
-            <button
-              type="button"
-              onClick={onNewChat}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#FFE600] hover:bg-[#FFF066] text-black border-[2.5px] border-black text-xs font-black shadow-[2.5px_2.5px_0px_#000000] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer font-heading uppercase tracking-wide"
-            >
-              <Plus className="w-4 h-4 stroke-[3]" />
-              <span className="hidden sm:inline">New Chat</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onShareTrip}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-black border-[2.5px] border-black text-xs font-black shadow-[2.5px_2.5px_0px_#000000] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer font-heading uppercase tracking-wide"
+                title="Share Trip Itinerary"
+              >
+                <Share2 className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span className="hidden md:inline">Share</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onExportPDF}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-[#FFE600] text-black border-[2.5px] border-black text-xs font-black shadow-[2.5px_2.5px_0px_#000000] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer font-heading uppercase tracking-wide"
+                title="Print or Save as PDF"
+              >
+                <Printer className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span className="hidden md:inline">PDF</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onNewChat}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#FFE600] hover:bg-[#FFF066] text-black border-[2.5px] border-black text-xs font-black shadow-[2.5px_2.5px_0px_#000000] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer font-heading uppercase tracking-wide"
+              >
+                <Plus className="w-4 h-4 stroke-[3]" />
+                <span className="hidden sm:inline">New Chat</span>
+              </button>
+            </div>
           )}
 
           {user ? (

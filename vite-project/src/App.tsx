@@ -40,6 +40,7 @@ export default function App() {
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const [hasApiKey, setHasApiKey] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
     setHasApiKey(!!getStoredApiKey());
@@ -59,6 +60,9 @@ export default function App() {
     const unsubscribe = onAuthChange((firebaseUser) => {
       setUser(firebaseUser);
       if (firebaseUser?.uid) {
+        if (typeof window !== 'undefined' && localStorage.getItem('travai_history_cleared') === 'true') {
+          return;
+        }
         loadCloudSessions(firebaseUser.uid).then((cloudSess) => {
           if (cloudSess && cloudSess.length > 0) {
             setSessions((prev) => {
@@ -89,6 +93,9 @@ export default function App() {
   };
 
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
+    if (typeof window !== 'undefined' && localStorage.getItem('travai_history_cleared') === 'true') {
+      return [];
+    }
     const saved = localStorage.getItem('travai_sessions');
     if (saved) {
       try {
@@ -147,6 +154,9 @@ export default function App() {
 
     isGeneratingRef.current = true;
     setIsGenerating(true);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('travai_history_cleared');
+    }
 
     const userMsgId = `user-${Date.now()}`;
     const assistantMsgId = `ai-${Date.now()}`;
@@ -424,6 +434,9 @@ export default function App() {
   };
 
   const handleClearAllSessions = async () => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('travai_history_cleared', 'true');
+    }
     if (user?.uid) {
       await clearCloudSessions(user.uid);
     }
@@ -436,6 +449,54 @@ export default function App() {
     setSessions([]);
     setMessages([]);
     setActiveSessionId(null);
+    setToastMessage('All history cleared');
+    setTimeout(() => setToastMessage(null), 2500);
+  };
+
+  const handleShareTrip = async () => {
+    if (messages.length === 0) return;
+    const currentSession = sessions.find((s) => s.id === activeSessionId);
+    const title = currentSession?.title || 'My AI Trip Plan';
+    const userMsg = messages.find((m) => m.role === 'user');
+    const aiMsgs = messages.filter((m) => m.role === 'assistant');
+    const latestAi = aiMsgs[aiMsgs.length - 1];
+
+    let shareSummary = `🌍 ${title}\n\n`;
+    if (userMsg) {
+      shareSummary += `✈️ Plan: "${userMsg.content}"\n\n`;
+    }
+    if (latestAi && latestAi.content) {
+      const snippet = latestAi.content.length > 400 ? latestAi.content.slice(0, 400) + '...' : latestAi.content;
+      shareSummary += `${snippet}\n\n`;
+    }
+    shareSummary += `Generated with travAI: ${window.location.origin}`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `travAI - ${title}`,
+          text: shareSummary,
+          url: window.location.href,
+        });
+        setToastMessage('Trip shared successfully!');
+        setTimeout(() => setToastMessage(null), 2500);
+        return;
+      } catch (err: any) {
+        if (err.name === 'AbortError') return;
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(shareSummary);
+      setToastMessage('Trip itinerary copied to clipboard!');
+    } catch {
+      setToastMessage('Failed to copy to clipboard');
+    }
+    setTimeout(() => setToastMessage(null), 2500);
+  };
+
+  const handleExportPDF = () => {
+    window.print();
   };
 
   return (
@@ -452,6 +513,8 @@ export default function App() {
         user={user}
         onSignIn={handleSignIn}
         onSignOut={handleSignOut}
+        onShareTrip={handleShareTrip}
+        onExportPDF={handleExportPDF}
       />
 
       <Sidebar
@@ -465,6 +528,14 @@ export default function App() {
         onSelectCurrency={handleSelectCurrency}
         onClearAllSessions={handleClearAllSessions}
       />
+
+      {toastMessage && (
+        <div className="fixed top-20 right-5 z-50 animate-in fade-in slide-in-from-top-3 duration-200 no-print">
+          <div className="bg-[#FFE600] text-black border-[3px] border-black px-4 py-2.5 rounded-xl font-black text-xs uppercase shadow-[4px_4px_0px_#000] flex items-center gap-2">
+            <span>{toastMessage}</span>
+          </div>
+        </div>
+      )}
 
       <main className="flex-1 flex flex-col justify-between">
         {messages.length === 0 ? (
@@ -489,7 +560,7 @@ export default function App() {
       </main>
 
       {messages.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-30 p-3 bg-gradient-to-t from-[#F4F4F0] via-[#F4F4F0]/90 to-transparent">
+        <div className="fixed bottom-0 left-0 right-0 z-30 p-3 bg-gradient-to-t from-[#F4F4F0] via-[#F4F4F0]/90 to-transparent no-print">
           <ChatInput onSend={handleSendMessage} disabled={isGenerating} isLanding={false} currency={currency} />
         </div>
       )}

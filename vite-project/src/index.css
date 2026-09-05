@@ -201,4 +201,63 @@
   to { opacity: 1; }
 }
 
+/* Print & PDF Export Optimization */
+@media print {
+  header,
+  nav,
+  aside,
+  form,
+  button,
+  .no-print,
+  [role="button"] {
+    display: none !important;
+  }
+
+  body {
+    background: #FFFFFF !important;
+    background-image: none !important;
+    color: #000000 !important;
+    font-size: 12pt;
+  }
+
+  .brutal-grid {
+    background-image: none !important;
+  }
+
+  .brutal-card,
+  .brutal-card-yellow,
+  .brutal-card-dark {
+    box-shadow: none !important;
+    border: 1.5px solid #000000 !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    margin-bottom: 1rem !important;
+    background: #FFFFFF !important;
+    color: #000000 !important;
+  }
+
+  h1, h2, h3, h4, h5, h6, p, span, div {
+    color: #000000 !important;
+  }
+
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  div[class*="max-w-3xl"] {
+    max-width: 100% !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    margin: 0 !important;
+  }
+
+  a {
+    text-decoration: underline !important;
+    color: #000000 !important;
+  }
+}
+
 
