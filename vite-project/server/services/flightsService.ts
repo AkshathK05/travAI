@@ -1,4 +1,4 @@
-﻿import { FlightItem } from '../../src/types/index.js';
+import { FlightItem } from '../../src/types/index.js';
 import { getServerEnv } from './envHelper.js';
 
 export interface FlightSearchParams {
@@ -40,6 +40,47 @@ const AIRPORT_HUBS: Record<string, AirportHub> = {
   zurich: { city: 'Zurich', code: 'ZRH', name: 'Zurich Kloten' },
 };
 
+const ORIGIN_HUBS: Record<string, AirportHub> = {
+  del: { city: 'New Delhi', code: 'DEL', name: 'Indira Gandhi Int’l' },
+  delhi: { city: 'New Delhi', code: 'DEL', name: 'Indira Gandhi Int’l' },
+  bom: { city: 'Mumbai', code: 'BOM', name: 'Chhatrapati Shivaji Maharaj' },
+  mumbai: { city: 'Mumbai', code: 'BOM', name: 'Chhatrapati Shivaji Maharaj' },
+  blr: { city: 'Bengaluru', code: 'BLR', name: 'Kempegowda Int’l' },
+  bangalore: { city: 'Bengaluru', code: 'BLR', name: 'Kempegowda Int’l' },
+  bengaluru: { city: 'Bengaluru', code: 'BLR', name: 'Kempegowda Int’l' },
+  maa: { city: 'Chennai', code: 'MAA', name: 'Chennai Int’l' },
+  chennai: { city: 'Chennai', code: 'MAA', name: 'Chennai Int’l' },
+  hyd: { city: 'Hyderabad', code: 'HYD', name: 'Rajiv Gandhi Int’l' },
+  hyderabad: { city: 'Hyderabad', code: 'HYD', name: 'Rajiv Gandhi Int’l' },
+  ccu: { city: 'Kolkata', code: 'CCU', name: 'Netaji Subhash Chandra Bose' },
+  kolkata: { city: 'Kolkata', code: 'CCU', name: 'Netaji Subhash Chandra Bose' },
+  dxb: { city: 'Dubai', code: 'DXB', name: 'Dubai Int’l' },
+  dubai: { city: 'Dubai', code: 'DXB', name: 'Dubai Int’l' },
+  sin: { city: 'Singapore', code: 'SIN', name: 'Changi Int’l' },
+  singapore: { city: 'Singapore', code: 'SIN', name: 'Changi Int’l' },
+  lhr: { city: 'London', code: 'LHR', name: 'Heathrow Airport' },
+  london: { city: 'London', code: 'LHR', name: 'Heathrow Airport' },
+  jfk: { city: 'New York', code: 'JFK', name: 'John F. Kennedy' },
+  nyc: { city: 'New York', code: 'JFK', name: 'John F. Kennedy' },
+  sfo: { city: 'San Francisco', code: 'SFO', name: 'San Francisco Int’l' },
+};
+
+function resolveOriginAirport(originText?: string): AirportHub | null {
+  if (!originText) return null;
+  const lower = originText.toLowerCase();
+  for (const key of Object.keys(ORIGIN_HUBS)) {
+    if (lower.includes(key)) {
+      return ORIGIN_HUBS[key];
+    }
+  }
+  const codeMatch = originText.match(/\b([A-Z]{3})\b/i);
+  if (codeMatch) {
+    const code = codeMatch[1].toUpperCase();
+    return { city: code, code, name: `${code} Airport` };
+  }
+  return null;
+}
+
 function resolveDestinationAirport(destText: string): AirportHub {
   const lower = (destText || '').toLowerCase();
   for (const key of Object.keys(AIRPORT_HUBS)) {
@@ -56,11 +97,12 @@ function resolveDestinationAirport(destText: string): AirportHub {
 export async function searchFlights(params: FlightSearchParams): Promise<FlightSearchResponse> {
   const target = (params.destination || params.query || 'Tokyo').trim();
   const destAirport = resolveDestinationAirport(target);
+  const originAirport = resolveOriginAirport(params.origin);
   const currency = params.currency || 'INR';
   const isUSD = currency.includes('USD') || currency === '$';
   const isEUR = currency.includes('EUR') || currency === '€';
 
-  const cacheKey = `${destAirport.code}_${currency}`.toLowerCase();
+  const cacheKey = `${destAirport.code}_${originAirport?.code || 'AUTO'}_${currency}`.toLowerCase();
   const cached = cache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
     return cached.data;
@@ -359,10 +401,19 @@ export async function searchFlights(params: FlightSearchParams): Promise<FlightS
     ],
   };
 
-  const flights = flightsByDest[destAirport.code] || flightsByDest.HND;
+  const rawFlights = flightsByDest[destAirport.code] || flightsByDest.HND;
+  const flights = originAirport
+    ? rawFlights.map((fl) => ({
+        ...fl,
+        id: `${fl.id}-${originAirport.code.toLowerCase()}`,
+        from: originAirport.city,
+        fromCode: originAirport.code,
+      }))
+    : rawFlights;
+
   const result: FlightSearchResponse = {
     flights,
-    origin: flights[0]?.from || 'New Delhi',
+    origin: originAirport?.city || flights[0]?.from || 'New Delhi',
     destination: destAirport.city,
   };
 

@@ -13,6 +13,7 @@ import {
   setDoc,
   getDocs,
   getDoc,
+  deleteDoc,
   collection,
   query,
   orderBy
@@ -194,4 +195,25 @@ export async function loadCloudSessionMessages(
     console.warn('Failed to load session messages from cloud:', error);
   }
   return [];
+}
+
+/**
+ * Clears all chat sessions belonging to a user from Firestore.
+ */
+export async function clearCloudSessions(uid: string): Promise<void> {
+  if (!db || !uid) return;
+
+  if (!auth?.currentUser || auth.currentUser.uid !== uid) {
+    console.warn('Security: Attempted cloud session clear with mismatched or unauthenticated UID.');
+    return;
+  }
+
+  try {
+    const chatsCol = collection(db, 'users', uid, 'chats');
+    const snap = await getDocs(chatsCol);
+    const deletePromises = snap.docs.map((d) => deleteDoc(d.ref));
+    await Promise.all(deletePromises);
+  } catch (error) {
+    console.warn('Failed to clear cloud sessions:', error);
+  }
 }

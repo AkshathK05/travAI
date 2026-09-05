@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowUp, Paperclip, Wallet, Users, Check } from 'lucide-react';
+import { ArrowUp, Paperclip, Wallet, Users, Check, PlaneTakeoff } from 'lucide-react';
 
 interface ChatInputProps {
-  onSend: (text: string, metadata?: { budget?: string; travelers?: string; currency?: string }) => void;
+  onSend: (text: string, metadata?: { budget?: string; travelers?: string; currency?: string; origin?: string }) => void;
   disabled?: boolean;
   isLanding?: boolean;
   initialValue?: string;
@@ -36,8 +36,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const [input, setInput] = useState(initialValue);
   const [budget, setBudget] = useState(budgetOptions[2] || '₹1.5 Lakh');
   const [travelers, setTravelers] = useState('2 Adults');
+  const [origin, setOrigin] = useState('From: Auto (DEL/BOM)');
   const [showBudgetMenu, setShowBudgetMenu] = useState(false);
   const [showTravelersMenu, setShowTravelersMenu] = useState(false);
+  const [showOriginMenu, setShowOriginMenu] = useState(false);
+  const [customOrigin, setCustomOrigin] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isSubmittingRef = useRef(false);
 
@@ -70,7 +73,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }
 
     try {
-      onSend(textToSend, { budget, travelers, currency });
+      onSend(textToSend, { budget, travelers, currency, origin });
     } finally {
       setTimeout(() => {
         isSubmittingRef.current = false;
@@ -90,6 +93,19 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   };
 
   const travelerOptions = ['Solo Traveler', '2 Adults (Couple)', 'Family (3-4)', 'Group (5+)'];
+  const originOptions = [
+    'Auto (DEL/BOM)',
+    'DEL (New Delhi)',
+    'BOM (Mumbai)',
+    'BLR (Bengaluru)',
+    'MAA (Chennai)',
+    'HYD (Hyderabad)',
+    'CCU (Kolkata)',
+    'DXB (Dubai)',
+    'SIN (Singapore)',
+    'LHR (London)',
+    'JFK (New York)',
+  ];
 
   return (
     <form
@@ -197,6 +213,89 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                       {travelers === opt && <Check className="w-3.5 h-3.5 text-black stroke-[3]" />}
                     </button>
                   ))}
+                </div>
+              )}
+            </div>
+
+            {/* Origin Pill */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowOriginMenu(!showOriginMenu);
+                  setShowBudgetMenu(false);
+                  setShowTravelersMenu(false);
+                }}
+                className="flex items-center gap-1 text-xs font-black px-2.5 py-1 rounded-lg bg-[#FF5376] text-black border-[2px] border-black shadow-[2px_2px_0px_#000000] hover:bg-[#FF7590] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer font-heading uppercase"
+                title="Select or customize departure origin"
+              >
+                <PlaneTakeoff className="w-3.5 h-3.5 stroke-[3]" />
+                <span>{origin.startsWith('From:') ? origin : `From: ${origin}`}</span>
+              </button>
+
+              {showOriginMenu && (
+                <div className="absolute left-0 bottom-full mb-2 w-60 bg-white border-[3px] border-black rounded-xl shadow-[5px_5px_0px_#000000] p-2 z-50 max-h-72 flex flex-col">
+                  <div className="text-[10px] font-black uppercase text-slate-600 mb-1.5 px-1 font-heading">
+                    Departure Origin Hub
+                  </div>
+
+                  {/* Custom Origin Input */}
+                  <div className="flex gap-1 mb-2">
+                    <input
+                      type="text"
+                      value={customOrigin}
+                      onChange={(e) => setCustomOrigin(e.target.value.toUpperCase())}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (customOrigin.trim()) {
+                            setOrigin(customOrigin.trim());
+                            setShowOriginMenu(false);
+                            setCustomOrigin('');
+                          }
+                        }
+                      }}
+                      placeholder="e.g. BLR, DXB, JFK"
+                      className="flex-1 bg-slate-50 border-[2px] border-black rounded-lg px-2 py-1 text-xs font-black placeholder:font-normal focus:outline-none"
+                      maxLength={15}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (customOrigin.trim()) {
+                          setOrigin(customOrigin.trim());
+                          setShowOriginMenu(false);
+                          setCustomOrigin('');
+                        }
+                      }}
+                      className="px-2 py-1 bg-[#FFE600] border-[2px] border-black rounded-lg text-xs font-black shadow-[1px_1px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 cursor-pointer"
+                    >
+                      Set
+                    </button>
+                  </div>
+
+                  {/* Common Hubs list */}
+                  <div className="overflow-y-auto flex-1 space-y-1">
+                    {originOptions.map((opt) => {
+                      const isSelected = origin === opt || origin === `From: ${opt}`;
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => {
+                            setOrigin(opt);
+                            setShowOriginMenu(false);
+                          }}
+                          className={`w-full text-left px-2.5 py-1.5 text-xs font-extrabold rounded-lg flex items-center justify-between border-2 ${
+                            isSelected ? 'bg-[#FF5376] text-black border-black shadow-[1.5px_1.5px_0px_#000]' : 'text-slate-900 border-transparent hover:bg-slate-100'
+                          }`}
+                        >
+                          <span>{opt}</span>
+                          {isSelected && <Check className="w-3.5 h-3.5 text-black stroke-[3]" />}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>

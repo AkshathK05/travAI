@@ -11,6 +11,7 @@ interface SidebarProps {
   onNewChat: () => void;
   currency: string;
   onSelectCurrency: (curr: string) => void;
+  onClearAllSessions?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -21,7 +22,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectSession,
   onNewChat,
   currency,
-  onSelectCurrency
+  onSelectCurrency,
+  onClearAllSessions,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -144,6 +146,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
               )}
             </div>
+
+            {onClearAllSessions && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm('Are you sure you want to clear all history?')) {
+                    onClearAllSessions();
+                    onClose();
+                  }
+                }}
+                className="w-full mt-4 py-2 px-3 bg-red-400 hover:bg-red-500 text-black font-bold border-2 border-black rounded shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] transition-all text-xs uppercase cursor-pointer"
+              >
+                Clear All History
+              </button>
+            )}
           </div>
 
           {/* Currency Preference */}

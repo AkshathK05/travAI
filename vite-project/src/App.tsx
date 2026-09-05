@@ -19,7 +19,8 @@ import {
   onAuthChange,
   saveCloudSession,
   loadCloudSessions,
-  loadCloudSessionMessages
+  loadCloudSessionMessages,
+  clearCloudSessions
 } from './services/firebase';
 import {
   INITIAL_JAPAN_RESPONSE,
@@ -130,7 +131,7 @@ export default function App() {
 
   const handleSendMessage = async (
     text: string,
-    metadata?: { budget?: string; travelers?: string; currency?: string }
+    metadata?: { budget?: string; travelers?: string; currency?: string; origin?: string }
   ) => {
     // Immediate synchronous lock to prevent double-firing and phantom duplicate requests
     if (isGeneratingRef.current) return;
@@ -178,6 +179,7 @@ export default function App() {
           budget: metadata?.budget,
           travelers: metadata?.travelers,
           currency: activeCurrency,
+          origin: metadata?.origin,
         },
         selectedModel,
         currentApiKey
@@ -260,7 +262,7 @@ export default function App() {
         title: titleText.length >= 45 ? `${titleText}...` : titleText,
         createdAt: 'Today',
         updatedAt: 'Just now',
-        messageCount: 2,
+        messageCount: finalMessages.length > 0 ? finalMessages.length : 2,
         preview: text.slice(0, 80),
       };
 
@@ -271,8 +273,12 @@ export default function App() {
         return next;
       });
 
+      // Save messages locally so sessions are hydrated immediately in offline/guest mode
+      const msgsToPersist = finalMessages.length > 0 ? finalMessages : [newUserMsg, newAiMsg];
+      localStorage.setItem(`travai_msgs_${currentId}`, JSON.stringify(msgsToPersist));
+
       if (user?.uid) {
-        saveCloudSession(user.uid, updatedSess, finalMessages.length > 0 ? finalMessages : [newUserMsg, newAiMsg]);
+        saveCloudSession(user.uid, updatedSess, msgsToPersist);
       }
     } catch (error: any) {
       console.error('Failed to query Gemini model:', error);
@@ -333,6 +339,7 @@ export default function App() {
         return next;
       });
 
+      localStorage.setItem(`travai_msgs_${currentId}`, JSON.stringify(messages));
       if (user?.uid) {
         saveCloudSession(user.uid, savedSession, messages);
       }
@@ -344,7 +351,9 @@ export default function App() {
 
   const handleSelectSession = async (id: string) => {
     setActiveSessionId(id);
+    setSidebarOpen(false);
 
+    // 1. If user is signed in, load from Firestore
     if (user?.uid) {
       const cloudMsgs = await loadCloudSessionMessages(user.uid, id);
       if (cloudMsgs && cloudMsgs.length > 0) {
@@ -353,6 +362,19 @@ export default function App() {
       }
     }
 
+    // 2. Check local storage cache
+    const localMsgs = localStorage.getItem(`travai_msgs_${id}`);
+    if (localMsgs) {
+      try {
+        const parsed = JSON.parse(localMsgs);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setMessages(parsed);
+          return;
+        }
+      } catch {}
+    }
+
+    // 3. Fallback to demo sessions
     if (id === 'sess-1') {
       setMessages([
         {
@@ -401,6 +423,21 @@ export default function App() {
     }
   };
 
+  const handleClearAllSessions = async () => {
+    if (user?.uid) {
+      await clearCloudSessions(user.uid);
+    }
+    localStorage.removeItem('travai_sessions');
+    Object.keys(localStorage).forEach((key) => {
+      if (key.startsWith('travai_msgs_')) {
+        localStorage.removeItem(key);
+      }
+    });
+    setSessions([]);
+    setMessages([]);
+    setActiveSessionId(null);
+  };
+
   return (
     <div className="min-h-screen bg-[#F4F4F0] text-slate-900 flex flex-col font-['Outfit','Plus_Jakarta_Sans',sans-serif] brutal-grid selection:bg-[#FFE600] selection:text-black">
       
@@ -426,6 +463,7 @@ export default function App() {
         onNewChat={handleNewChat}
         currency={currency}
         onSelectCurrency={handleSelectCurrency}
+        onClearAllSessions={handleClearAllSessions}
       />
 
       <main className="flex-1 flex flex-col justify-between">

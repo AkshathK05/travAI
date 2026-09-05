@@ -3,7 +3,7 @@ import { ArrowRight, Sparkles, Compass, Key, ShieldCheck } from 'lucide-react';
 import { ChatInput } from './ChatInput';
 
 interface LandingViewProps {
-  onSend: (text: string, metadata?: { budget?: string; travelers?: string; currency?: string }) => void;
+  onSend: (text: string, metadata?: { budget?: string; travelers?: string; currency?: string; origin?: string }) => void;
   disabled?: boolean;
   currency?: string;
 }

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { Source } from "../types";
-import { stripThinkingTraces } from "../services/geminiService";
+import { stripThinkingTraces, cleanFormattingTokens } from "../services/geminiService";
+
+export { cleanFormattingTokens };
 
 const WORD_MS = 30;
 
@@ -48,7 +50,7 @@ function parseInlineMarkdown(text: string): React.ReactNode[] {
 function renderFormattedMarkdown(rawText: string) {
   if (!rawText) return null;
 
-  const sanitized = stripThinkingTraces(rawText, { trim: false });
+  const sanitized = cleanFormattingTokens(stripThinkingTraces(rawText, { trim: false }));
   if (!sanitized) return null;
 
   // Pre-process text: normalize inline numbers like " 2. " or " 3. " onto newlines
@@ -134,7 +136,7 @@ export const StreamingText: React.FC<StreamingTextProps> = ({
   followUps,
   onFollowUpSelect,
 }) => {
-  const cleanContent = stripThinkingTraces(content, { trim: false });
+  const cleanContent = cleanFormattingTokens(stripThinkingTraces(content, { trim: false }));
   const words = cleanContent.split(" ");
   const [count, setCount] = useState(isStreaming ? 0 : words.length);
   const done = count >= words.length;
