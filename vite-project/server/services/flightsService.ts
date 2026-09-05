@@ -67,14 +67,19 @@ const ORIGIN_HUBS: Record<string, AirportHub> = {
 
 function resolveOriginAirport(originText?: string): AirportHub | null {
   if (!originText) return null;
-  const lower = originText.toLowerCase();
-  for (const key of Object.keys(ORIGIN_HUBS)) {
-    if (lower.includes(key)) {
+  const lower = originText.toLowerCase().trim();
+  if (lower.startsWith('auto') || lower.includes('auto (')) {
+    return null;
+  }
+  const sortedKeys = Object.keys(ORIGIN_HUBS).sort((a, b) => b.length - a.length);
+  for (const key of sortedKeys) {
+    const regex = new RegExp(`\\b${key}\\b`, 'i');
+    if (regex.test(lower)) {
       return ORIGIN_HUBS[key];
     }
   }
   const codeMatch = originText.match(/\b([A-Z]{3})\b/i);
-  if (codeMatch) {
+  if (codeMatch && codeMatch[1].toUpperCase() !== 'AUTO') {
     const code = codeMatch[1].toUpperCase();
     return { city: code, code, name: `${code} Airport` };
   }
@@ -97,7 +102,10 @@ function resolveDestinationAirport(destText: string): AirportHub {
 export async function searchFlights(params: FlightSearchParams): Promise<FlightSearchResponse> {
   const target = (params.destination || params.query || 'Tokyo').trim();
   const destAirport = resolveDestinationAirport(target);
-  const originAirport = resolveOriginAirport(params.origin);
+  let originAirport = resolveOriginAirport(params.origin);
+  if (!originAirport && params.query) {
+    originAirport = resolveOriginAirport(params.query);
+  }
   const currency = params.currency || 'INR';
   const isUSD = currency.includes('USD') || currency === '$';
   const isEUR = currency.includes('EUR') || currency === '€';
