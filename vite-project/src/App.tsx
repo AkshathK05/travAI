@@ -22,14 +22,6 @@ import {
   loadCloudSessionMessages,
   clearCloudSessions
 } from './services/firebase';
-import {
-  INITIAL_JAPAN_RESPONSE,
-  JAPAN_TRIP_SOURCES,
-  JAPAN_FLIGHTS,
-  JAPAN_HOTELS,
-  JAPAN_ITINERARY,
-  BALI_VS_VIETNAM_COMPARISON
-} from './data/mockData';
 
 export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -103,24 +95,7 @@ export default function App() {
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       } catch {}
     }
-    return [
-      {
-        id: 'sess-1',
-        title: '7-Day Japan Food & Culture Trip',
-        createdAt: 'Today',
-        updatedAt: 'Just now',
-        messageCount: 2,
-        preview: 'Plan a 7-day trip to Japan for two people under ₹1.5 lakh...'
-      },
-      {
-        id: 'sess-2',
-        title: 'Bali vs Vietnam ₹80,000 Budget',
-        createdAt: 'Yesterday',
-        updatedAt: 'Yesterday',
-        messageCount: 2,
-        preview: 'Compare a 5-day holiday in Bali vs Vietnam for ₹80,000.'
-      }
-    ];
+    return [];
   });
 
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -384,53 +359,7 @@ export default function App() {
       } catch {}
     }
 
-    // 3. Fallback to demo sessions
-    if (id === 'sess-1') {
-      setMessages([
-        {
-          id: 'demo-user-1',
-          role: 'user',
-          content: 'Plan a 7-day trip to Japan for two people under ₹1.5 lakh, focused on food and culture.',
-          timestamp: '10:00 AM'
-        },
-        {
-          id: 'demo-ai-1',
-          role: 'assistant',
-          content: INITIAL_JAPAN_RESPONSE,
-          timestamp: '10:01 AM',
-          sources: JAPAN_TRIP_SOURCES,
-          flights: JAPAN_FLIGHTS,
-          hotels: JAPAN_HOTELS,
-          itinerary: JAPAN_ITINERARY,
-          followUpSuggestions: [
-            '⚡ Make Day 3 cheaper',
-            '🍣 Add more food experiences in Osaka',
-            '🏨 Swap hotel to Shibuya area',
-            '⚖️ Compare Japan with Vietnam for ₹1.5L'
-          ]
-        }
-      ]);
-    } else if (id === 'sess-2') {
-      setMessages([
-        {
-          id: 'demo-user-2',
-          role: 'user',
-          content: 'Compare a 5-day holiday in Bali vs Vietnam for ₹80,000.',
-          timestamp: 'Yesterday'
-        },
-        {
-          id: 'demo-ai-2',
-          role: 'assistant',
-          content: 'Here is a side-by-side comparison between Bali (Indonesia) and Da Nang / Hoi An (Vietnam) for a 5-day trip under ₹80,000 for two people.',
-          timestamp: 'Yesterday',
-          comparison: BALI_VS_VIETNAM_COMPARISON,
-          followUpSuggestions: [
-            '🌴 Build 5-day Vietnam itinerary under ₹80k',
-            '🌺 Build 5-day Bali itinerary under ₹80k'
-          ]
-        }
-      ]);
-    }
+    setMessages([]);
   };
 
   const handleClearAllSessions = async () => {

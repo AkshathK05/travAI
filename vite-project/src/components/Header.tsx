@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, PanelLeft, ChevronDown, Check, Compass, User, Key, Sparkles, LogOut, Share2, Printer } from 'lucide-react';
+import { Plus, PanelLeft, ChevronDown, Check, User, Key, Sparkles, LogOut, Share2, Printer } from 'lucide-react';
 
 interface HeaderProps {
   onToggleSidebar: () => void;
@@ -58,9 +58,11 @@ export const Header: React.FC<HeaderProps> = ({
             onClick={onNewChat}
             className="flex items-center gap-2.5 cursor-pointer select-none group"
           >
-            <div className="w-8 h-8 rounded-xl bg-[#FFE600] border-[2.5px] border-black flex items-center justify-center text-black shadow-[2.5px_2.5px_0px_#000000] group-hover:-translate-y-0.5 transition-transform">
-              <Compass className="w-4 h-4 stroke-[3]" />
-            </div>
+            <img 
+              src="/travai-logo.png" 
+              alt="travAI Logo" 
+              className="w-7 h-7 object-contain border-2 border-black rounded shadow-[1.5px_1.5px_0px_0px_rgba(0,0,0,1)] bg-yellow-400 p-0.5" 
+            />
 
             <span className="text-lg font-black tracking-tight text-slate-900 font-heading uppercase flex items-center gap-1.5">
               Trav<span className="bg-[#FFE600] text-black px-1.5 py-0.5 rounded-lg border-[2px] border-black text-xs font-black shadow-[2px_2px_0px_#000]">AI</span>

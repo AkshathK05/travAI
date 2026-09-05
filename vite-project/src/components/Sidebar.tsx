@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, MessageSquare, Search, X, Compass, SlidersHorizontal, Clock } from 'lucide-react';
+import { Plus, MessageSquare, Search, X, SlidersHorizontal, Clock } from 'lucide-react';
 import { ChatSession } from '../types';
 
 interface SidebarProps {
@@ -54,9 +54,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="p-4 bg-white border-b-[3px] border-black space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-[#FFE600] border-[2px] border-black flex items-center justify-center text-black shadow-[2px_2px_0px_#000]">
-                <Compass className="w-4 h-4 stroke-[3]" />
-              </div>
+              <img 
+                src="/travai-logo.png" 
+                alt="travAI Logo" 
+                className="w-7 h-7 object-contain border-2 border-black rounded shadow-[1.5px_1.5px_0px_0px_rgba(0,0,0,1)] bg-yellow-400 p-0.5" 
+              />
               <span className="text-sm font-black text-slate-900 font-heading uppercase tracking-wide">Conversations</span>
             </div>
             <button
