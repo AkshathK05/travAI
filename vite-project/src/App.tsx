@@ -216,8 +216,22 @@ export default function App() {
         console.warn('Stream rendering encountered error, falling back:', streamErr?.message || streamErr);
       }
 
-      const fullText = await streamResult.getFullText();
-      const followUps = extractFollowUpSuggestions(fullText);
+      let fullText = accumulatedContent;
+      try {
+        const resolvedText = await streamResult.getFullText();
+        if (resolvedText && resolvedText.trim().length >= fullText.trim().length) {
+          fullText = resolvedText;
+        }
+      } catch (getErr) {
+        console.warn('Non-fatal error resolving getFullText:', getErr);
+      }
+
+      let followUps: string[] = [];
+      try {
+        followUps = extractFollowUpSuggestions(fullText);
+      } catch (e) {
+        console.warn('FollowUp extraction non-fatal:', e);
+      }
 
       let finalMessages: ChatMessage[] = [];
       setMessages((prev) => {

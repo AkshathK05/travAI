@@ -1,10 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { Source } from "../types";
 import { stripThinkingTraces, cleanFormattingTokens } from "../services/geminiService";
 
 export { cleanFormattingTokens };
-
-const WORD_MS = 30;
 
 const DEFAULT_SOURCES: Source[] = [
   {
@@ -53,8 +51,9 @@ function renderFormattedMarkdown(rawText: string) {
   const sanitized = cleanFormattingTokens(stripThinkingTraces(rawText, { trim: false }));
   if (!sanitized) return null;
 
-  // Pre-process text: normalize inline numbers like " 2. " or " 3. " onto newlines
+  // Pre-process text: strip lone double-dashes, normalize inline numbers onto newlines
   const normalized = sanitized
+    .replace(/^\s*--\s*$/gm, '')
     .replace(/\s+(\d+\.\s+\*\*)/g, '\n$1')
     .replace(/\s+(\d+\.\s+[A-Z])/g, '\n$1');
 
@@ -64,7 +63,12 @@ function renderFormattedMarkdown(rawText: string) {
     <div className="space-y-2 text-slate-900 font-extrabold">
       {blocks.map((block, bIdx) => {
         const trimmed = block.trim();
-        if (!trimmed) return null;
+        if (!trimmed || trimmed === '--') return null;
+
+        // Horizontal Rules / Dividers (e.g., "---", "***", "___")
+        if (/^[-*_]{2,}$/.test(trimmed)) {
+          return <hr key={bIdx} className="border-t-2 border-black/20 my-3" />;
+        }
 
         // Numbered list item (e.g., "1. **Tokyo (Day 2 Evening):** ...")
         const numMatch = trimmed.match(/^(\d+)\.\s+(.*)/);
@@ -90,7 +94,7 @@ function renderFormattedMarkdown(rawText: string) {
         if (trimmed.startsWith('#')) {
           const headingText = trimmed.replace(/^#+\s*/, '');
           return (
-            <div key={bIdx} className="pt-2 pb-1">
+            <div key={bIdx} className="pt-3 pb-1">
               <h4 className="text-sm font-black text-slate-900 font-heading uppercase tracking-wide flex items-center gap-2">
                 <span className="w-3 h-3 bg-[#00F0FF] border-[1.5px] border-black rounded-md shadow-[1px_1px_0px_#000]"></span>
                 {parseInlineMarkdown(headingText)}
@@ -99,9 +103,13 @@ function renderFormattedMarkdown(rawText: string) {
           );
         }
 
-        // Bullet point (e.g., "- Roundtrip Flights...")
-        if (trimmed.startsWith('-') || trimmed.startsWith('*')) {
-          const bulletText = trimmed.replace(/^[-*]\s*/, '');
+        // Bullet point (strictly requires leading bullet symbol followed by whitespace and non-empty content)
+        const bulletMatch = trimmed.match(/^[-*•]\s+(.+)/);
+        if (bulletMatch) {
+          const bulletText = bulletMatch[1].trim();
+          if (!bulletText || bulletText === '--' || bulletText === '-') {
+            return null;
+          }
           return (
             <div key={bIdx} className="flex items-start gap-2.5 p-2 rounded-xl bg-[#F4F4F0] border-[2px] border-black shadow-[2px_2px_0px_#000] my-1 text-xs sm:text-sm font-bold">
               <span className="w-2.5 h-2.5 rounded-full bg-[#00E599] border border-black shrink-0 mt-1 shadow-[1px_1px_0px_#000]" />
@@ -137,41 +145,20 @@ export const StreamingText: React.FC<StreamingTextProps> = ({
   onFollowUpSelect,
 }) => {
   const cleanContent = cleanFormattingTokens(stripThinkingTraces(content, { trim: false }));
-  const words = cleanContent.split(" ");
-  const [count, setCount] = useState(isStreaming ? 0 : words.length);
-  const done = count >= words.length;
-
-  useEffect(() => {
-    if (!isStreaming) {
-      setCount(words.length);
-      return;
-    }
-    if (count >= words.length) return;
-
-    const t = setTimeout(() => {
-      setCount((c) => Math.min(c + 1, words.length));
-    }, WORD_MS);
-    return () => clearTimeout(t);
-  }, [count, isStreaming, words.length]);
-
-  const currentText = isStreaming ? words.slice(0, count).join(" ") : cleanContent;
 
   return (
     <div className="w-full space-y-3">
-      {/* Streamed Formatted Content */}
+      {/* Streamed Formatted Content: rendered directly and reactively as chunks arrive */}
       <div className="relative">
-        {renderFormattedMarkdown(currentText)}
-        {!done && (
+        {renderFormattedMarkdown(cleanContent)}
+        {isStreaming && (
           <span className="ml-1 inline-block h-4 w-1.5 translate-y-0.5 rounded-sm bg-black animate-pulse" />
         )}
       </div>
 
-      {/* Follow-ups */}
-      {followUps && followUps.length > 0 && (
-        <div
-          className="mt-4 pt-3 border-t-[2.5px] border-black/20 space-y-2"
-          style={{ opacity: done ? 1 : 0, pointerEvents: done ? "auto" : "none" }}
-        >
+      {/* Follow-ups (shown when streaming is complete) */}
+      {!isStreaming && followUps && followUps.length > 0 && (
+        <div className="mt-4 pt-3 border-t-[2.5px] border-black/20 space-y-2">
           <p className="text-xs font-black text-slate-800 uppercase tracking-widest font-heading">Refine & Follow-up</p>
           <div className="flex flex-wrap gap-2">
             {followUps.map((text) => (

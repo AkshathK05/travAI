@@ -48,6 +48,8 @@ Your mission is to craft realistic, culturally nuanced, logistically coherent tr
 
 ## Mandatory Response Structure — CRITICAL
 Every travel itinerary MUST follow this sequential structure without skipping:
+* Do not output raw isolated dashes like '--'. Complete all sentences and sections fully.
+* Never stop after flight recommendations; you must always output the complete Day 1 through Day 7 schedule, specific verified tourist attractions, and the budget table.
 1. Flight Logistics & Route Breakdown:
    - Specific airline carrier, flight numbers, departure from user origin (e.g. BLR, DEL, BOM), arrival, durations, and baggage allowances.
 2. Accommodations & Lodging (Verified hotels):
@@ -216,7 +218,8 @@ export function cleanFormattingTokens(text: string): string {
     .replace(/\$\\to\$/g, '→')
     .replace(/\$\\times\$/g, '×')
     .replace(/\\rightarrow/g, '→')
-    .replace(/\\times/g, '×');
+    .replace(/\\times/g, '×')
+    .replace(/^\s*--\s*$/gm, '');
 }
 
 export function cleanResponseText(rawText: string): string {
