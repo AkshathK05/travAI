@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { chunkMarkdown, ChunkRecord } from '../../src/services/chunker.js';
 import { upsertChunksToPinecone } from '../../server/services/pineconeService.js';
+import { getServerEnv } from '../../server/services/envHelper.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -30,8 +31,23 @@ function getAllMarkdownFiles(dirPath: string): string[] {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'POST' && req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed. Use POST or GET.' });
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed. Only POST is permitted for data ingestion.' });
+  }
+
+  // Enforce administrative secret authorization
+  const configuredSecret = getServerEnv('INGEST_SECRET') || process.env.INGEST_SECRET;
+  const authHeader = req.headers['authorization'] || '';
+  const adminKeyHeader = (req.headers['x-admin-key'] as string) || '';
+  const bearerToken = typeof authHeader === 'string' && authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+  const providedKey = bearerToken || adminKeyHeader;
+
+  if (configuredSecret) {
+    if (providedKey !== configuredSecret) {
+      return res.status(401).json({ error: 'Unauthorized: Invalid or missing ingestion secret token.' });
+    }
+  } else if (process.env.NODE_ENV === 'production') {
+    return res.status(403).json({ error: 'Forbidden: INGEST_SECRET is not configured on this server.' });
   }
 
   try {
@@ -103,7 +119,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.error('Ingestion error:', error);
     return res.status(500).json({
       success: false,
-      error: error.message || 'Failed to complete RAG ingestion',
+      error: 'An internal error occurred during knowledge ingestion.',
     });
   }
 }

@@ -88,4 +88,13 @@ All developers and AI assistants working on **travAI** must strictly adhere to t
 ## 8. Firebase Authentication & Cloud State Sync
 - **Client Firebase Configuration:** Firebase client variables (`VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, etc.) are public Web SDK identifiers.
 - **Graceful Unconfigured Fallback:** The application must never crash if Firebase environment variables are omitted or invalid. All session saving must fall back cleanly to `localStorage['travai_sessions']` in guest mode.
-- **User Privacy & Scoping:** When authenticated, user sessions and message histories must be scoped strictly under `users/{uid}/chats/{chatId}` in Firestore.
+- **User Privacy & Scoping:** When authenticated, user sessions and message histories must be scoped strictly under `users/{uid}/chats/{chatId}` in Firestore, guarded by both client identity verification and `firestore.rules`.
+
+---
+
+## 9. Security, Input Sanitization & Error Scrubbing
+- **Endpoint Authorization:** Administrative and vector ingestion endpoints (e.g. `/api/rag/ingest`) must enforce secret token authorization via `Authorization: Bearer <INGEST_SECRET>` or `x-admin-key: <INGEST_SECRET>`. Unauthenticated requests must be rejected with `401 Unauthorized`.
+- **Zero Information Leakage in Errors:** Serverless functions must never return raw upstream error messages, internal file paths, or stack traces in HTTP responses (`res.status(500)`). Log the error internally on the server and return a clean, generic user-facing message.
+- **Strict Input Sanitization:** All serverless inputs (`query`, `destination`, `origin`, `currency`) must be stripped of control characters, length-bounded, and validated before forwarding to upstream providers.
+- **Client-Side URL Sanitization:** Any dynamic URL rendered in an `<a>` tag must be validated through `sanitizeUrl()` to strictly permit only `http://` and `https://` schemes, preventing XSS vectors like `javascript:...` or `data:...`.
+- **Prompt Injection Defense:** User inputs must be sanitized to neutralize delimiter tokens and wrapped in clearly delimited sections (`--- USER TRAVEL REQUEST ---`). System instructions must explicitly instruct models to reject instruction overrides within user input.

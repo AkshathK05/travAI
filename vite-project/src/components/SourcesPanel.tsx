@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ExternalLink, Globe, MapPin, Building, Plane } from 'lucide-react';
 import { Source } from '../types';
+import { sanitizeUrl } from '../utils/security';
 
 interface SourcesPanelProps {
   sources: Source[];
@@ -41,7 +42,7 @@ export const SourcesPanel: React.FC<SourcesPanelProps> = ({ sources }) => {
           sources.slice(0, 3).map((src) => (
             <a
               key={src.id}
-              href={src.url}
+              href={sanitizeUrl(src.url)}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white hover:bg-slate-100 border-[1.5px] border-black text-slate-900 shadow-[1.5px_1.5px_0px_#000000] transition-all text-xs font-bold"
@@ -64,7 +65,7 @@ export const SourcesPanel: React.FC<SourcesPanelProps> = ({ sources }) => {
             {sources.map((src) => (
               <a
                 key={src.id}
-                href={src.url}
+                href={sanitizeUrl(src.url)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="group flex items-start gap-3 p-2.5 rounded-xl bg-[#F4F4F0] border-[2px] border-black shadow-[2px_2px_0px_#000000] hover:bg-white transition-all"

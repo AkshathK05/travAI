@@ -1,4 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { sanitizeUrl } from "../utils/security";
 
 /* ─────────────────────────────────────────────────────────
  * THINKING — expandable agent trace
@@ -191,7 +192,7 @@ export const ThinkingState: React.FC<{
                 return (
                   <a
                     key={row.primary}
-                    href={row.href}
+                    href={sanitizeUrl(row.href)}
                     target="_blank"
                     rel="noreferrer"
                     className={`${rowClass} transition-colors duration-150 hover:bg-[var(--hover)]`}

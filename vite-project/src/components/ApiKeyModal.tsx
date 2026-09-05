@@ -34,9 +34,13 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onKey
     setIsValidating(true);
     setValidationError(null);
 
-    // Live validation against Google Gemini ListModels API endpoint
+    // Live validation against Google Gemini ListModels API endpoint using secure header
     try {
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${trimmed}`);
+      const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
+        headers: {
+          'x-goog-api-key': trimmed,
+        },
+      });
       if (res.status === 400 || res.status === 403) {
         const errorData = await res.json().catch(() => ({}));
         const message = errorData?.error?.message || 'Google rejected this API key. Please check your key at Google AI Studio.';

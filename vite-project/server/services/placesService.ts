@@ -1,4 +1,4 @@
-﻿import fs from 'fs';
+import fs from 'fs';
 import path from 'path';
 import { getServerEnv } from './envHelper.js';
 import { ActivityItem } from '../../src/types/index.js';
@@ -33,6 +33,10 @@ const DEFAULT_ENDPOINTS = [
   'https://overpass.kumi.systems/api/interpreter',
   'https://overpass.nchc.org.tw/api/interpreter',
 ];
+
+export function getOverpassEndpoints(): string[] {
+  return [...DEFAULT_ENDPOINTS];
+}
 
 export const KNOWN_DESTINATION_META: Record<string, { country: string; defaultLat: number; defaultLon: number }> = {
   Tokyo: { country: 'Japan', defaultLat: 35.6762, defaultLon: 139.6503 },

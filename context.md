@@ -246,7 +246,7 @@ sequenceDiagram
 | `/api/places/search` | POST/GET | Geoapify Places API v2 + OpenStreetMap (Overpass API) | Verified POIs, GPS coordinates, categories, preview images, ActivityItem[] | Geoapify with OSM Overpass mirror failover & curated city fallback |
 | `/api/flights/search` | POST/GET | RapidAPI AeroDataBox | Verified carrier flights, flight numbers, duration, live pricing | Curated global route schedule matrix covering top travel hubs |
 | `/api/hotels/search` | POST/GET | RapidAPI Booking.com | Verified hotels, addresses, star ratings, amenities, photos | Curated high-rating lodging matrix covering top travel hubs |
-| `/api/rag/ingest` | POST/GET | Local Markdown files (`data/japan.md`) | Ingests and embeds knowledge into Pinecone | Returns summary of indexed documents |
+| `/api/rag/ingest` | POST (Auth Required) | Local Markdown files (`data/japan.md`) | Ingests and embeds knowledge into Pinecone | Requires Bearer `<INGEST_SECRET>` or `x-admin-key` header |
 
 ---
 
@@ -254,6 +254,7 @@ sequenceDiagram
 
 | Variable Name | Target Scope | Description | Secret? |
 | :--- | :--- | :--- | :--- |
+| `INGEST_SECRET` | Server (`.env.local` / Vercel) | Administrative secret authorizing `/api/rag/ingest` vector upserts | Yes (Server Secret) |
 | `GEOAPIFY_API_KEY` | Server (`.env.local` / Vercel) | Key for Geoapify Places v2 and Geocoding APIs | Yes (Server Secret) |
 | `RAPIDAPI_KEY` | Server (`.env.local` / Vercel) | Key for RapidAPI (AeroDataBox flights & Booking.com hotels) | Yes (Server Secret) |
 | `PINECONE_API_KEY` | Server (`.env.local` / Vercel) | Pinecone vector DB authentication | Yes (Server Secret) |
@@ -278,3 +279,4 @@ sequenceDiagram
 | 2026-09-05 | Antigravity AI | Synchronized active currency with `localStorage['travai_currency']` and fixed "Start New Plan" session preservation in `App.tsx`. |
 | 2026-09-05 | Antigravity AI | Integrated Firebase Authentication (Google popup) and Cloud Firestore session synchronization (`users/{uid}/chats`) with offline guest fallback. |
 | 2026-09-05 | Antigravity AI | Replaced OpenTripMap with Geoapify Places API v2, integrated RapidAPI for live flight schedules and hotel lodging with resilient matrix fallbacks, verified Firebase Auth client safety, and documented environment variable registry. |
+| 2026-09-06 | Antigravity AI | Completed Security & Threat Hardening: enforced administrative secret authorization on `/api/rag/ingest`, scrubbed serverless 500 error outputs, hardened input validation against SSRF/DoS, secured Firestore operations and rules (`firestore.rules`), prevented XSS via `sanitizeUrl`, neutralized prompt injection delimiter spoofing, and expanded `tsconfig.json` static analysis across all files. |

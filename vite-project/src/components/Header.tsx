@@ -29,9 +29,9 @@ export const Header: React.FC<HeaderProps> = ({
   const [showModelMenu, setShowModelMenu] = useState(false);
 
   const models = [
-    { id: 'Gemini 2.5 Flash', desc: 'Fast & Intelligent (Google Gemini API)', recommended: true },
-    { id: 'Gemini 2.0 Flash', desc: 'Real-time Multimodal (Google Gemini API)' },
-    { id: 'Gemini 1.5 Pro', desc: 'Deep Reasoning & Complex Itineraries' }
+    { id: 'Gemini 2.0 Flash', desc: 'Fast, stable & multimodal (Google Gemini API)', recommended: true },
+    { id: 'Gemini 1.5 Flash', desc: 'High efficiency & low latency (Google Gemini API)' },
+    { id: 'Gemini 1.5 Pro', desc: 'Deep reasoning & complex itineraries' }
   ];
 
   return (

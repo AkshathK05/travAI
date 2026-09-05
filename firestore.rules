@@ -1,0 +1,14 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // User sessions and messages can strictly only be accessed by the owning authenticated user
+    match /users/{userId}/chats/{chatId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Default deny-all for all other paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

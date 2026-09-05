@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ChatMessage, ChatSession } from './types';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
@@ -32,7 +32,7 @@ import {
 
 export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [selectedModel, setSelectedModel] = useState('Gemini 2.5 Flash');
+  const [selectedModel, setSelectedModel] = useState('Gemini 2.0 Flash');
   const [currency, setCurrency] = useState(() => localStorage.getItem('travai_currency') || '₹ INR');
   const [isGenerating, setIsGenerating] = useState(false);
   const [exportMessage, setExportMessage] = useState<ChatMessage | null>(null);
@@ -205,19 +205,23 @@ export default function App() {
 
       let accumulatedContent = '';
 
-      for await (const chunk of streamResult.stream) {
-        accumulatedContent += chunk;
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === assistantMsgId
-              ? {
-                  ...msg,
-                  content: accumulatedContent,
-                  isStreaming: true,
-                }
-              : msg
-          )
-        );
+      try {
+        for await (const chunk of streamResult.stream) {
+          accumulatedContent += chunk;
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantMsgId
+                ? {
+                    ...msg,
+                    content: accumulatedContent,
+                    isStreaming: true,
+                  }
+                : msg
+            )
+          );
+        }
+      } catch (streamErr: any) {
+        console.warn('Stream rendering encountered error, falling back:', streamErr?.message || streamErr);
       }
 
       const fullText = await streamResult.getFullText();

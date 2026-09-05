@@ -127,11 +127,11 @@ export async function searchChunksInPinecone(
 
   const hits = response.result?.hits || [];
 
-  return hits.map((hit) => {
+  return hits.map((hit: any) => {
     const fields = (hit.fields || {}) as Record<string, any>;
     return {
-      id: hit.id,
-      score: hit.score,
+      id: hit._id || hit.id || '',
+      score: hit._score ?? hit.score,
       text: fields.text || '',
       source: fields.source || '',
       sourceUrl: fields.sourceUrl || '',

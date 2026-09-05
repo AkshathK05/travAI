@@ -1,4 +1,4 @@
-﻿import { initializeApp, getApps, getApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
   getAuth,
   signInWithPopup,
@@ -82,14 +82,34 @@ export function onAuthChange(callback: (user: User | null) => void): () => void 
 }
 
 /**
+ * Validates document ID to prevent malformed or path traversal characters.
+ */
+function isValidDocId(id: string): boolean {
+  return typeof id === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(id);
+}
+
+/**
  * Saves or updates a chat session and its full message history in Firestore.
+ * Enforces that the current authenticated user matches the target UID.
  */
 export async function saveCloudSession(
   uid: string,
   session: ChatSession,
   messages: ChatMessage[]
 ): Promise<void> {
-  if (!db || !uid) return;
+  if (!db || !uid || !session?.id) return;
+
+  // Enforce caller authentication & UID identity match
+  if (!auth?.currentUser || auth.currentUser.uid !== uid) {
+    console.warn('Security: Attempted cloud session save with mismatched or unauthenticated UID.');
+    return;
+  }
+
+  if (!isValidDocId(session.id)) {
+    console.warn('Security: Invalid session ID format for cloud save.');
+    return;
+  }
+
   try {
     const chatDocRef = doc(db, 'users', uid, 'chats', session.id);
     await setDoc(chatDocRef, {
@@ -104,9 +124,17 @@ export async function saveCloudSession(
 
 /**
  * Loads all chat sessions belonging to a user from Firestore.
+ * Enforces that the current authenticated user matches the target UID.
  */
 export async function loadCloudSessions(uid: string): Promise<ChatSession[]> {
   if (!db || !uid) return [];
+
+  // Enforce caller authentication & UID identity match
+  if (!auth?.currentUser || auth.currentUser.uid !== uid) {
+    console.warn('Security: Attempted cloud session load with mismatched or unauthenticated UID.');
+    return [];
+  }
+
   try {
     const chatsCol = collection(db, 'users', uid, 'chats');
     const q = query(chatsCol);
@@ -134,12 +162,25 @@ export async function loadCloudSessions(uid: string): Promise<ChatSession[]> {
 
 /**
  * Loads the full message list for a specific chat session from Firestore.
+ * Enforces that the current authenticated user matches the target UID.
  */
 export async function loadCloudSessionMessages(
   uid: string,
   sessionId: string
 ): Promise<ChatMessage[]> {
-  if (!db || !uid) return [];
+  if (!db || !uid || !sessionId) return [];
+
+  // Enforce caller authentication & UID identity match
+  if (!auth?.currentUser || auth.currentUser.uid !== uid) {
+    console.warn('Security: Attempted cloud session messages load with mismatched or unauthenticated UID.');
+    return [];
+  }
+
+  if (!isValidDocId(sessionId)) {
+    console.warn('Security: Invalid session ID format for cloud messages load.');
+    return [];
+  }
+
   try {
     const chatDocRef = doc(db, 'users', uid, 'chats', sessionId);
     const snap = await getDoc(chatDocRef);
