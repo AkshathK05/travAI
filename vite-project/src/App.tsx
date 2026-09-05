@@ -101,10 +101,37 @@ export default function App() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const chatBottomRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const isUserScrolledUp = useRef(false);
   const isGeneratingRef = useRef(false);
 
-  const scrollToBottom = () => {
-    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const handleScroll = () => {
+    let isNearBottom = true;
+    if (
+      chatContainerRef.current &&
+      chatContainerRef.current.scrollHeight > chatContainerRef.current.clientHeight + 10
+    ) {
+      const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
+      // If user is more than 120px away from the bottom, respect their scroll position
+      isNearBottom = scrollHeight - scrollTop - clientHeight < 120;
+    } else if (typeof window !== 'undefined') {
+      const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
+      const windowHeight = window.innerHeight;
+      const docHeight = document.documentElement.scrollHeight;
+      isNearBottom = docHeight - scrollY - windowHeight < 120;
+    }
+    isUserScrolledUp.current = !isNearBottom;
+  };
+
+  useEffect(() => {
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToBottom = (force = false) => {
+    if (force || !isUserScrolledUp.current) {
+      chatBottomRef.current?.scrollIntoView({ behavior: 'auto' });
+    }
   };
 
   useEffect(() => {
@@ -127,8 +154,10 @@ export default function App() {
       return;
     }
 
+    isUserScrolledUp.current = false;
     isGeneratingRef.current = true;
     setIsGenerating(true);
+    scrollToBottom(true);
     if (typeof window !== 'undefined') {
       localStorage.removeItem('travai_history_cleared');
     }
@@ -346,9 +375,11 @@ export default function App() {
 
     setMessages([]);
     setActiveSessionId(null);
+    isUserScrolledUp.current = false;
   };
 
   const handleSelectSession = async (id: string) => {
+    isUserScrolledUp.current = false;
     setActiveSessionId(id);
     setSidebarOpen(false);
 
@@ -484,7 +515,11 @@ export default function App() {
         {messages.length === 0 ? (
           <LandingView onSend={handleSendMessage} disabled={isGenerating} currency={currency} />
         ) : (
-          <div className="flex-1 flex flex-col max-w-3xl mx-auto w-full px-4 pt-4 pb-36">
+          <div
+            ref={chatContainerRef}
+            onScroll={handleScroll}
+            className="flex-1 flex flex-col max-w-3xl mx-auto w-full px-4 pt-4 pb-36"
+          >
             {messages.map((msg) =>
               msg.role === 'user' ? (
                 <UserMessage key={msg.id} message={msg} />
