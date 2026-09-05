@@ -1,6 +1,30 @@
-import { GoogleGenerativeAI, EnhancedGenerateContentResponse } from '@google/generative-ai';
+import {
+  GoogleGenerativeAI,
+  EnhancedGenerateContentResponse,
+  HarmCategory,
+  HarmBlockThreshold,
+} from '@google/generative-ai';
 import { ChatMessage, FlightItem, HotelItem } from '../types';
 import { sanitizeUserInput } from '../utils/security';
+
+const SAFETY_SETTINGS = [
+  {
+    category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+    threshold: HarmBlockThreshold.BLOCK_NONE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+    threshold: HarmBlockThreshold.BLOCK_NONE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+    threshold: HarmBlockThreshold.BLOCK_NONE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+    threshold: HarmBlockThreshold.BLOCK_NONE,
+  },
+];
 
 const API_KEY_STORAGE_KEY = 'travai_gemini_api_key';
 
@@ -47,15 +71,15 @@ Your mission is to craft realistic, culturally nuanced, logistically coherent tr
 * Do not reproduce retrieved text verbatim; synthesize it concisely in your own helpful tone.
 
 ## Conciseness Rules for Sections 1–3 — CRITICAL
-* Section 1 (Flights): Limit to 1 primary recommendation card + 1 line for direct alternative.
-* Section 2 (Hotels): Limit to 1 recommended property with bullet points strictly for location, nightly rate, and total cost.
+* Section 1 (Flights): 1 primary flight recommendation with key details (airline, flight number, times, baggage, price) + 1 direct alternative. Always write full price amounts (e.g. ₹36,200).
+* Section 2 (Hotels): 1 recommended property with bullet points strictly for location, nightly rate, and total cost.
 * Section 3 (Transit): Answer the pass/train question directly in 3-4 bullet points.
 * DO NOT write lengthy conversational prose in Sections 1-3. Reserve at least 60% of your response length for Section 4 (Day-by-Day Itinerary).
 
 ## Mandatory Response Structure — CRITICAL
-Every travel itinerary MUST follow this sequential structure without skipping:
-* Do not output raw isolated dashes like '--'. Complete all sentences and sections fully.
-* Never stop after flight recommendations or transit; you must always output the complete Day 1 through Day 7 schedule, specific verified tourist attractions, and the budget table.
+Every travel itinerary MUST follow this sequential structure without skipping or stopping early:
+* Do not output raw isolated dashes like '--'. Complete all sentences, numbers, and sections fully.
+* Never stop after flight recommendations or transit; you must ALWAYS output the complete Day 1 through Day 7 schedule, specific verified tourist attractions, and the budget table.
 1. Flight Logistics & Route Breakdown:
    - Specific airline carrier, flight numbers, departure from user origin (e.g. BLR, DEL, BOM), arrival, durations, and baggage allowances.
 2. Accommodations & Lodging (Verified hotels):
@@ -70,7 +94,7 @@ Every travel itinerary MUST follow this sequential structure without skipping:
    - Comprehensive itemized breakdown (Flights, Lodging, Transit/Passes, Food, Sightseeing/Activities, and Contingency) demonstrating how the trip stays strictly within the user's budget.
 
 ## Critical Completion Requirement — MANDATORY
-You are STRICTLY FORBIDDEN from ending your response without outputting all scheduled days (e.g., Day 1 through Day 7/8) in Section 4 and the final Markdown Budget Summary Table in Section 5. If running low on space, condense descriptions into bullet points, but ALWAYS render every single day with morning, afternoon, and evening landmarks.
+You are STRICTLY FORBIDDEN from ending your response early or stopping after Section 1, 2, or 3. You MUST always output all scheduled days (e.g., Day 1 through Day 7/8) in Section 4 and the final Markdown Budget Summary Table in Section 5. If running low on space, condense descriptions into bullet points, but ALWAYS render every single day with morning, afternoon, and evening landmarks.
 
 ## Behavior
 * Be helpful, accurate, concise, and personalized.
@@ -539,19 +563,18 @@ export async function streamGeminiQuery(
         model = genAI.getGenerativeModel({
           model: candidateModelId,
           systemInstruction: SYSTEM_INSTRUCTION,
+          safetySettings: SAFETY_SETTINGS,
           generationConfig: {
             temperature: 0.7,
             topP: 0.95,
             maxOutputTokens: 8192,
-            thinkingConfig: {
-              thinkingBudget: 0,
-            },
-          } as any,
+          },
         });
       } catch {
         model = genAI.getGenerativeModel({
           model: candidateModelId,
           systemInstruction: SYSTEM_INSTRUCTION,
+          safetySettings: SAFETY_SETTINGS,
           generationConfig: {
             temperature: 0.7,
             topP: 0.95,
@@ -601,6 +624,8 @@ export async function streamGeminiQuery(
       async function* generateStreamChunks() {
         let preambleHandled = false;
         let preambleBuffer = '';
+        let lastFinishReason: string | undefined = undefined;
+        let streamErrorOccurred: any = null;
         const PREAMBLE_TRIGGER_REGEX = /^(?:<(?:thought|think)>|(?:\*|\-)?\s*(?:User says|The user is|The user wants|Trip Constraints|Self-correction|Considerations|Thinking Process|Draft \d+|Goal):)/i;
 
         try {
@@ -608,6 +633,9 @@ export async function streamGeminiQuery(
             try {
               let chunkText = '';
               const candidate = (chunk as any)?.candidates?.[0];
+              if (candidate?.finishReason) {
+                lastFinishReason = candidate.finishReason;
+              }
               const parts = candidate?.content?.parts;
               if (Array.isArray(parts) && parts.length > 0) {
                 for (const part of parts) {
@@ -665,11 +693,40 @@ export async function streamGeminiQuery(
           }
         } catch (streamErr: any) {
           console.warn('Stream parser interrupted:', streamErr?.message || streamErr);
-          // If stream failed before yielding sufficient content, fallback to non-streaming generateContent
-          if (fullResponseText.trim().length < 50) {
+          streamErrorOccurred = streamErr;
+        }
+
+        // Check if stream ended prematurely (e.g. cut off mid-flight, stream exception, non-STOP finishReason, or missing sections)
+        const isClearlyIncomplete =
+          Boolean(streamErrorOccurred) ||
+          (lastFinishReason && lastFinishReason !== 'STOP') ||
+          (!fullResponseText.toLowerCase().includes('budget') && !fullResponseText.toLowerCase().includes('day 3')) ||
+          fullResponseText.trim().length < 600;
+
+        if (isClearlyIncomplete) {
+          console.warn(
+            `Stream terminated prematurely (length: ${fullResponseText.length}, finishReason: ${lastFinishReason}, error: ${streamErrorOccurred?.message || 'none'}). Triggering non-streaming recovery...`
+          );
+
+          for (const fallbackModelId of candidateModels) {
             try {
-              console.info(`Falling back to non-streaming generateContent on ${candidateModelId}...`);
-              const nonStreamRes = await model.generateContent({ contents });
+              let recoveryModel: any;
+              try {
+                recoveryModel = genAI.getGenerativeModel({
+                  model: fallbackModelId,
+                  systemInstruction: SYSTEM_INSTRUCTION,
+                  safetySettings: SAFETY_SETTINGS,
+                  generationConfig: {
+                    temperature: 0.7,
+                    topP: 0.95,
+                    maxOutputTokens: 8192,
+                  },
+                });
+              } catch {
+                continue;
+              }
+
+              const nonStreamRes = await recoveryModel.generateContent({ contents });
               let fallbackText = '';
               const candidateParts = nonStreamRes?.response?.candidates?.[0]?.content?.parts;
               if (Array.isArray(candidateParts)) {
@@ -682,38 +739,49 @@ export async function streamGeminiQuery(
               }
               fallbackText = stripThinkingTraces(fallbackText);
 
-              if (fallbackText) {
-                const remaining = fallbackText.startsWith(fullResponseText)
-                  ? fallbackText.slice(fullResponseText.length)
-                  : fallbackText;
+              if (fallbackText && fallbackText.trim().length > fullResponseText.trim().length) {
+                let delta = '';
+                if (fallbackText.startsWith(fullResponseText)) {
+                  delta = fallbackText.slice(fullResponseText.length);
+                } else {
+                  delta = '\n\n' + fallbackText;
+                }
                 fullResponseText = fallbackText;
-                yield remaining;
+                if (delta) {
+                  yield delta;
+                }
                 return;
               }
-            } catch (fallbackErr) {
-              console.warn('Non-streaming fallback failed:', fallbackErr);
+            } catch (recoveryErr) {
+              console.warn(`Non-streaming recovery on ${fallbackModelId} failed:`, recoveryErr);
             }
           }
-          if (!fullResponseText.trim()) {
-            throw streamErr;
-          }
+        }
+
+        if (!fullResponseText.trim() && streamErrorOccurred) {
+          throw streamErrorOccurred;
         }
       }
 
       return {
         stream: generateStreamChunks(),
         getFullText: async () => {
-          if (!fullResponseText) {
+          if (!fullResponseText || fullResponseText.trim().length < 600) {
             try {
               const response = await result.response;
               const candidateParts = (response as any)?.candidates?.[0]?.content?.parts;
+              let fetched = '';
               if (Array.isArray(candidateParts)) {
-                fullResponseText = candidateParts
+                fetched = candidateParts
                   .filter((part: any) => !(part as any)?.thought)
                   .map((part: any) => part?.text || '')
                   .join('');
               } else {
-                fullResponseText = extractUserFacingTextFromChunk(response);
+                fetched = extractUserFacingTextFromChunk(response);
+              }
+              fetched = stripThinkingTraces(fetched);
+              if (fetched && fetched.trim().length > fullResponseText.trim().length) {
+                fullResponseText = fetched;
               }
             } catch {
               // Handled by generateStreamChunks
